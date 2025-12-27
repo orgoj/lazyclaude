@@ -196,18 +196,12 @@ class MarketplaceModal(Widget):
         footer = self.query_one("#marketplace-footer", Static)
 
         if isinstance(data, MarketplacePlugin):
-            if data.is_installed:
-                action = "Enable" if not data.is_enabled else "Disable"
-                footer.update(
-                    f"[bold]p[/] Preview  [bold]i[/] {action}  [bold]u[/] Update  "
-                    "[bold]d[/] Uninstall  [bold]e[/] Edit  [bold]o[/] Open  "
-                    "[bold]/[/] Search  [bold]Esc[/] Close"
-                )
-            else:
-                footer.update(
-                    "[bold]p[/] Preview  [bold]i[/] Install  [bold]o[/] Open  "
-                    "[bold]/[/] Search  [bold]Esc[/] Close"
-                )
+            # Universal menu - always show all options
+            footer.update(
+                "[bold]p[/] Preview  [bold]I[/] Install  [bold]E[/] Enable  "
+                "[bold]D[/] Disable  [bold]u[/] Update  [bold]U[/] Uninstall  "
+                "[bold]e[/] Edit  [bold]o[/] Open  [bold]/[/] Search  [bold]Esc[/] Close"
+            )
         elif isinstance(data, Marketplace):
             footer.update(
                 "[bold]Space[/] Toggle  [bold]u[/] Update  [bold]o[/] Open  "
