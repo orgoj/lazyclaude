@@ -182,7 +182,18 @@ class MarketplaceMixin:
 
     def _on_plugin_command_error(self, error_msg: str) -> None:
         """Handle plugin command error."""
-        self.notify(error_msg, severity="error")  # type: ignore[attr-defined]
+        # Parse CLI error to extract meaningful message
+        if "not installed" in error_msg.lower():
+            self.notify("Plugin not installed in specified scope", severity="error")  # type: ignore[attr-defined]
+        elif "already enabled" in error_msg.lower():
+            self.notify("Plugin already enabled in specified scope", severity="warning")  # type: ignore[attr-defined]
+        elif "already disabled" in error_msg.lower():
+            self.notify(
+                "Plugin already disabled in specified scope", severity="warning"
+            )  # type: ignore[attr-defined]
+        else:
+            self.notify(error_msg, severity="error")  # type: ignore[attr-defined]
+
         if self._marketplace_modal:
             self._marketplace_modal.refresh_tree()
 
