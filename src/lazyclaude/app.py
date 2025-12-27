@@ -35,6 +35,7 @@ from lazyclaude.services.marketplace_loader import MarketplaceLoader
 from lazyclaude.services.settings import SettingsService
 from lazyclaude.themes import CUSTOM_THEMES
 from lazyclaude.widgets.combined_panel import CombinedPanel
+from lazyclaude.widgets.debug_overlay import DebugOverlay
 from lazyclaude.widgets.delete_confirm import DeleteConfirm
 from lazyclaude.widgets.detail_pane import MainPane
 from lazyclaude.widgets.filter_input import FilterInput
@@ -100,6 +101,7 @@ class LazyClaude(
         self._plugin_confirm: PluginConfirm | None = None
         self._delete_confirm: DeleteConfirm | None = None
         self._marketplace_modal: MarketplaceModal | None = None
+        self._debug_overlay: DebugOverlay | None = None
         self._marketplace_loader: MarketplaceLoader | None = None
         self._help_visible = False
         self._last_focused_panel: TypePanel | None = None
@@ -158,6 +160,9 @@ class LazyClaude(
         self._marketplace_modal = MarketplaceModal(id="marketplace-modal")
         yield self._marketplace_modal
 
+        self._debug_overlay = DebugOverlay(id="debug-overlay")
+        yield self._debug_overlay
+
         yield Footer()
 
     def on_mount(self) -> None:
@@ -183,6 +188,14 @@ class LazyClaude(
         )
         if self._marketplace_modal:
             self._marketplace_modal.set_loader(self._marketplace_loader)
+
+    def action_toggle_debug(self) -> None:
+        """Toggle debug overlay visibility (only works in debug mode)."""
+        if self._debug_overlay:
+            if self._debug_overlay.has_class("visible"):
+                self._debug_overlay.remove_class("visible")
+            else:
+                self._debug_overlay.add_class("visible")
 
     def _on_theme_changed(self, theme: Theme) -> None:  # noqa: ARG002
         """Persist theme when changed via theme picker."""

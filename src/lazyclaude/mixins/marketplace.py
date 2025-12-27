@@ -1,6 +1,8 @@
 """Marketplace mixin for LazyClaude application."""
 
+import logging
 import os
+import shlex
 import subprocess
 from typing import TYPE_CHECKING
 
@@ -15,6 +17,8 @@ from lazyclaude.models.customization import (
 from lazyclaude.models.marketplace import MarketplacePlugin
 from lazyclaude.services.opener import open_github_source, open_in_file_explorer
 from lazyclaude.widgets.marketplace_modal import MarketplaceModal
+
+logger = logging.getLogger(__name__)
 
 if TYPE_CHECKING:
     from lazyclaude.services.discovery import ConfigDiscoveryService
@@ -164,14 +168,46 @@ class MarketplaceMixin:
     @work(thread=True)
     def _run_plugin_command(self, cmd: list[str], success_msg: str) -> None:
         """Run a plugin command in a background worker."""
+        # Check if debug mode is enabled
+        debug_mode = getattr(self, "debug_mode", False)
+
         try:
-            subprocess.run(cmd, capture_output=True, text=True, check=True, shell=True)
+            # Convert command list to properly escaped shell string
+            cmd_str = shlex.join(cmd)
+
+            if debug_mode:
+                logger.debug(f"Running command: {cmd_str}")
+
+            result = subprocess.run(
+                cmd_str, capture_output=True, text=True, check=True, shell=True
+            )
+
+            if debug_mode:
+                logger.debug(f"Command stdout: {result.stdout}")
+                if result.stderr:
+                    logger.debug(f"Command stderr: {result.stderr}")
+                logger.debug(f"Command return code: {result.returncode}")
+
             self.call_from_thread(self._on_plugin_command_success, success_msg)  # type: ignore[attr-defined]
         except subprocess.CalledProcessError as e:
+            if debug_mode:
+                logger.debug(f"Command failed with return code: {e.returncode}")
+                logger.debug(f"Command stdout: {e.stdout}")
+                logger.debug(f"Command stderr: {e.stderr}")
+
             error_msg = f"Failed: {e.stderr or str(e)}"
             self.call_from_thread(self._on_plugin_command_error, error_msg)  # type: ignore[attr-defined]
         except FileNotFoundError:
+            if debug_mode:
+                logger.debug("Claude CLI not found")
+
             self.call_from_thread(self._on_plugin_command_error, "Claude CLI not found")  # type: ignore[attr-defined]
+        except Exception as e:
+            if debug_mode:
+                logger.debug(f"Unexpected error: {type(e).__name__}: {e}")
+
+            error_msg = f"Error: {str(e)}"
+            self.call_from_thread(self._on_plugin_command_error, error_msg)  # type: ignore[attr-defined]
 
     def _on_plugin_command_success(self, success_msg: str) -> None:
         """Handle successful plugin command completion."""

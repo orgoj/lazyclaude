@@ -32,6 +32,7 @@ APP_BINDINGS: list[BindingType] = [
     Binding("7", "focus_panel_7", "Panel 7", show=False),
     Binding("ctrl+u", "open_user_config", "User Config", show=False),
     Binding("M", "toggle_marketplace", "Marketplace", show=True, priority=True),
+    Binding("ctrl+d", "toggle_debug", "Debug", show=False),
     Binding("escape", "exit_preview", "Exit Preview", show=True, priority=True),
     Binding("escape", "back", "Back", show=False),
 ]
