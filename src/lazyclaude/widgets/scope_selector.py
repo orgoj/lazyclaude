@@ -146,28 +146,48 @@ class ScopeSelector(Widget):
             return
 
         status = self._scope_status.get(scope, "not_installed")
+        action = self._action
 
-        # Determine action based on current status
+        # Validate action against current status
         if status == "enabled":
-            # Already enabled - show warning, don't emit message
-            self._show_warning(f"Plugin already enabled in {scope.capitalize()} scope")
-            return
-
-        if status == "not_installed":
-            action = "install"
+            # Already enabled - can't enable again
+            if action == "enable":
+                self._show_warning(
+                    f"Plugin already enabled in {scope.capitalize()} scope"
+                )
+                return
+            # Can disable enabled plugin
+            elif action == "disable":
+                pass  # Use the disable action
         elif status == "disabled":
-            action = "enable"
-        else:
-            action = self._action
+            # Disabled - can enable
+            if action == "enable":
+                pass  # Use the enable action
+            # Can't disable disabled plugin
+            elif action == "disable":
+                self._show_warning(
+                    f"Plugin already disabled in {scope.capitalize()} scope"
+                )
+                return
+        elif status == "not_installed":
+            # Not installed - can only install
+            if action == "disable":
+                self._show_warning(
+                    f"Plugin not installed in {scope.capitalize()} scope - cannot disable"
+                )
+                return
+            elif action == "install":
+                pass  # Use install action
+            elif action == "enable":
+                # Enable on not_installed = install
+                action = "install"
 
         self.hide()
         self.post_message(self.ScopeSelected(self._plugin, scope, action))
 
     def _show_warning(self, message: str) -> None:
         """Show warning message to user."""
-        # TODO: Implement warning display (could use a toast or status bar message)
-        # For now, just log or could emit a warning message
-        pass
+        self.app.notify(message, severity="warning")  # type: ignore[attr-defined]
 
     def action_cancel(self) -> None:
         """Cancel selection."""

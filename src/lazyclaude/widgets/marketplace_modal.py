@@ -426,8 +426,10 @@ class MarketplaceModal(Widget):
 
         data = node.data
         if isinstance(data, MarketplacePlugin) and self._scope_selector:
-            # Show scope selector instead of direct toggle
-            self._scope_selector.show(data, data.scope_status, action="enable")
+            # Determine action based on whether plugin is enabled in any scope
+            # Same logic as footer display
+            action = "enable" if not data.is_enabled else "disable"
+            self._scope_selector.show(data, data.scope_status, action=action)
 
     def action_uninstall_plugin(self) -> None:
         """Uninstall the selected plugin with scope selector."""
