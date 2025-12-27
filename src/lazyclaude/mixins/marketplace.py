@@ -171,40 +171,55 @@ class MarketplaceMixin:
         # Check if debug mode is enabled
         debug_mode = getattr(self, "debug_mode", False)
 
+        if debug_mode:
+            logger.debug(
+                f"[PLUGIN COMMAND] Starting: cmd={cmd}, success_msg={success_msg}"
+            )
+
         try:
             # Convert command list to properly escaped shell string
             cmd_str = shlex.join(cmd)
 
             if debug_mode:
-                logger.debug(f"Running command: {cmd_str}")
+                logger.debug(f"[PLUGIN COMMAND] Executing: {cmd_str}")
 
             result = subprocess.run(
                 cmd_str, capture_output=True, text=True, check=True, shell=True
             )
 
             if debug_mode:
-                logger.debug(f"Command stdout: {result.stdout}")
+                logger.debug("[PLUGIN COMMAND] SUCCESS")
+                logger.debug(f"[PLUGIN COMMAND] Return code: {result.returncode}")
+                logger.debug(f"[PLUGIN COMMAND] Stdout: {result.stdout}")
                 if result.stderr:
-                    logger.debug(f"Command stderr: {result.stderr}")
-                logger.debug(f"Command return code: {result.returncode}")
+                    logger.debug(f"[PLUGIN COMMAND] Stderr: {result.stderr}")
 
             self.call_from_thread(self._on_plugin_command_success, success_msg)  # type: ignore[attr-defined]
+
+            if debug_mode:
+                logger.debug("[PLUGIN COMMAND] Success callback called")
         except subprocess.CalledProcessError as e:
             if debug_mode:
-                logger.debug(f"Command failed with return code: {e.returncode}")
-                logger.debug(f"Command stdout: {e.stdout}")
-                logger.debug(f"Command stderr: {e.stderr}")
+                logger.debug("[PLUGIN COMMAND] CALLED PROCESS ERROR")
+                logger.debug(f"[PLUGIN COMMAND] Return code: {e.returncode}")
+                logger.debug(f"[PLUGIN COMMAND] Stdout: {e.stdout}")
+                logger.debug(f"[PLUGIN COMMAND] Stderr: {e.stderr}")
 
             error_msg = f"Failed: {e.stderr or str(e)}"
             self.call_from_thread(self._on_plugin_command_error, error_msg)  # type: ignore[attr-defined]
         except FileNotFoundError:
             if debug_mode:
-                logger.debug("Claude CLI not found")
+                logger.debug("[PLUGIN COMMAND] FILE NOT ERROR - Claude CLI not found")
 
             self.call_from_thread(self._on_plugin_command_error, "Claude CLI not found")  # type: ignore[attr-defined]
         except Exception as e:
             if debug_mode:
-                logger.debug(f"Unexpected error: {type(e).__name__}: {e}")
+                logger.debug(
+                    f"[PLUGIN COMMAND] UNEXPECTED ERROR: {type(e).__name__}: {e}"
+                )
+                import traceback
+
+                logger.debug(f"[PLUGIN COMMAND] Traceback:\n{traceback.format_exc()}")
 
             error_msg = f"Error: {str(e)}"
             self.call_from_thread(self._on_plugin_command_error, error_msg)  # type: ignore[attr-defined]
@@ -332,15 +347,42 @@ class MarketplaceMixin:
         scope = message.scope
         action = message.action
 
-        # Build command with scope
-        cmd = self._build_plugin_command_with_scope(plugin, scope, action)
+        # Debug logging
+        debug_mode = getattr(self, "debug_mode", False)
+        if debug_mode:
+            logger.debug(
+                f"[MARKETPLACE] Scope selected: plugin={plugin.full_plugin_id}, scope={scope}, action={action}"
+            )
 
-        # Determine messages
-        action_msg = f"{action.capitalize()}ing {plugin.name}..."
-        success_msg = f"{action.capitalize()}ed {plugin.name}"
+        try:
+            # Build command with scope
+            cmd = self._build_plugin_command_with_scope(plugin, scope, action)
 
-        self.notify(action_msg, severity="information", timeout=2.0)  # type: ignore[attr-defined]
-        self._run_plugin_command(cmd, success_msg)
+            if debug_mode:
+                logger.debug(f"[MARKETPLACE] Built command: {cmd}")
+
+            # Determine messages
+            action_msg = f"{action.capitalize()}ing {plugin.name}..."
+            success_msg = f"{action.capitalize()}ed {plugin.name}"
+
+            if debug_mode:
+                logger.debug(f"[MARKETPLACE] About to notify: {action_msg}")
+
+            self.notify(action_msg, severity="information", timeout=2.0)  # type: ignore[attr-defined]
+
+            if debug_mode:
+                logger.debug("[MARKETPLACE] About to run plugin command")
+
+            self._run_plugin_command(cmd, success_msg)
+
+            if debug_mode:
+                logger.debug("[MARKETPLACE] Plugin command started in background")
+        except Exception as e:
+            if debug_mode:
+                logger.debug(
+                    f"[MARKETPLACE] ERROR in on_marketplace_modal_scope_selected: {type(e).__name__}: {e}"
+                )
+            self.notify(f"Error preparing plugin command: {e}", severity="error")  # type: ignore[attr-defined]
 
     def _build_plugin_command_with_scope(
         self, plugin: MarketplacePlugin, scope: str, action: str

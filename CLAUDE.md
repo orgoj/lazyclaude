@@ -205,3 +205,40 @@ Commands run in background workers (`@work(thread=True)`) to keep UI responsive.
 - One-time operations don't need helpers or abstractions
 - Don't add docstrings or comments to code you didn't change
 - Trust internal code and framework guarantees; validate only at system boundaries (user input, external APIs)
+
+## Mandatory Testing & Commit Rules
+
+**KRITICKÁ PRAVIDLA - VŽDY DODRŽOVAT:**
+
+1. **NEKOMITOVAT BEZ SCHVÁLENÍ** - Nikdy neudělej `git commit` dokud uživatel neschválí změny!
+   - Změny mohou být rollbacknuty (`git reset HEAD~1`)
+   - Vždy čekej na explicitní potvrzení od uživatele
+
+2. **VŽDY TESTOVAT SPUŠTĚNÍ** - Po jakýchkoli změnách v kódu:
+   ```bash
+   timeout 5 uv run lazyclaude --debug 2>&1 || true
+   ```
+   - Testuješ že aplikace: a) spustí se, b) nepadne hned, c) --debug funguje
+   - Timeout 5 sekund zajistí že se nezasekneš
+   - Pokud nefunguje -> opravit a testovat znovu
+
+3. **POSTUP PŘED COMMITEM:**
+   ```
+   a) Udělat změny
+   b) Spustit: timeout 5 uv run lazyclaude --debug 2>&1 || true
+   c) Počkat na schválení uživatelem
+   d) Teprve pak commitnout
+   ```
+
+4. **SUBPROCESS SHELL COMMANDS** - Specifické pro tento projekt:
+   - Při použití `subprocess.run(..., shell=True)` MUSÍŠ převést list na string
+   - Správně: `cmd_str = shlex.join(cmd); subprocess.run(cmd_str, ..., shell=True)`
+   - Špatně: `subprocess.run(cmd, ..., shell=True)` - spustí se jen první element!
+
+5. **QUALITY GATES** - Před commitem vždy:
+   ```bash
+   uv run ruff format src/     # Format
+   uv run ruff check src/      # Lint
+   uv run mypy src/            # Typecheck
+   uv run pytest               # Tests
+   ```

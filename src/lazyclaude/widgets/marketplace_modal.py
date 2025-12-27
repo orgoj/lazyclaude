@@ -209,12 +209,22 @@ class MarketplaceModal(Widget):
 
     def show(self, preserve_state: bool = False) -> None:
         """Show the modal and load marketplace data."""
+        import logging
+
+        logger = logging.getLogger(__name__)
+        logger.debug(
+            f"[MARKETPLACE MODAL] show() called, preserve_state={preserve_state}"
+        )
+
         if not preserve_state:
+            logger.debug("[MARKETPLACE MODAL] Loading data and building tree")
             self._load_data()
             self._build_tree()
         self.add_class("visible")
+        logger.debug("[MARKETPLACE MODAL] Added 'visible' class")
         if self._tree:
             self._tree.focus()
+            logger.debug("[MARKETPLACE MODAL] Focused tree")
 
     def hide(self, preserve_state: bool = False) -> None:
         """Hide the modal."""

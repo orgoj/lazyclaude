@@ -115,6 +115,7 @@ class LazyClaude(
         self._plugin_customizations: list[Customization] = []
         self._settings_service = SettingsService()
         self._settings = AppSettings()
+        self.debug_mode: bool = False
 
     def _fatal_error(self) -> None:
         """Print simple traceback instead of Rich's fancy one."""
@@ -160,25 +161,39 @@ class LazyClaude(
         self._marketplace_modal = MarketplaceModal(id="marketplace-modal")
         yield self._marketplace_modal
 
-        self._debug_overlay = DebugOverlay(id="debug-overlay")
-        yield self._debug_overlay
+        # Debug overlay only created when needed (file logging only, NOT TUI)
+        # self._debug_overlay = DebugOverlay(id="debug-overlay")
+        # yield self._debug_overlay
 
         yield Footer()
 
     def on_mount(self) -> None:
         """Handle mount event - load customizations."""
+        import logging
+
+        logger = logging.getLogger(__name__)
+        logger.debug("[APP] on_mount() started")
+
         for theme in CUSTOM_THEMES:
             self.register_theme(theme)
         self._settings = self._settings_service.load()
         self.theme = self._settings.theme
         self.theme_changed_signal.subscribe(self, self._on_theme_changed)
+
+        logger.debug("[APP] About to load customizations")
         self._load_customizations()
+        logger.debug("[APP] Customizations loaded")
+
+        logger.debug("[APP] About to update status panel")
         self._update_status_panel()
+
         project_name = self._discovery_service.project_root.name
         self.title = f"{project_name} - LazyClaude"
         self.console.set_window_title(self.title)
         if os.name == "nt":
             os.system(f"title {self.title}")
+
+        logger.debug(f"[APP] Mount complete, title={self.title}")
         self._config_path_resolver = ConfigPathResolver(
             self._discovery_service._plugin_loader,
         )
@@ -191,11 +206,25 @@ class LazyClaude(
 
     def action_toggle_debug(self) -> None:
         """Toggle debug overlay visibility (only works in debug mode)."""
+        import logging
+
+        logger = logging.getLogger(__name__)
+        logger.debug(
+            f"[DEBUG OVERLAY] Toggle called, has_class('visible'): {self._debug_overlay.has_class('visible') if self._debug_overlay else 'No overlay'}"
+        )
+
         if self._debug_overlay:
             if self._debug_overlay.has_class("visible"):
+                logger.debug("[DEBUG OVERLAY] Removing 'visible' class")
                 self._debug_overlay.remove_class("visible")
             else:
+                logger.debug("[DEBUG OVERLAY] Adding 'visible' class")
                 self._debug_overlay.add_class("visible")
+                logger.debug(
+                    f"[DEBUG OVERLAY] Classes after adding: {self._debug_overlay.classes}"
+                )
+        else:
+            logger.warning("[DEBUG OVERLAY] No debug overlay found!")
 
     def _on_theme_changed(self, theme: Theme) -> None:  # noqa: ARG002
         """Persist theme when changed via theme picker."""

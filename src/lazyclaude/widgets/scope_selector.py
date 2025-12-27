@@ -88,12 +88,22 @@ class ScopeSelector(Widget):
         action: str = "enable",
     ) -> None:
         """Show the scope selector and focus it."""
+        import logging
+
+        logger = logging.getLogger(__name__)
+        logger.debug(
+            f"[SCOPE SELECTOR] show() called: plugin={plugin.full_plugin_id}, action={action}"
+        )
+        logger.debug(f"[SCOPE SELECTOR] scope_status: {scope_status}")
+
         self._plugin = plugin
         self._scope_status = scope_status
         self._action = action
         self._update_prompt()
         self.add_class("visible")
+        logger.debug("[SCOPE SELECTOR] Added 'visible' class, about to focus")
         self.focus()
+        logger.debug("[SCOPE SELECTOR] Focused")
 
     def hide(self) -> None:
         """Hide the scope selector."""
@@ -130,78 +140,63 @@ class ScopeSelector(Widget):
 
     def action_select_user(self) -> None:
         """Select user scope."""
+        import logging
+
+        logger = logging.getLogger(__name__)
+        logger.debug("[SCOPE SELECTOR] action_select_user called")
         self._select_scope("user")
 
     def action_select_project(self) -> None:
         """Select project scope."""
+        import logging
+
+        logger = logging.getLogger(__name__)
+        logger.debug("[SCOPE SELECTOR] action_select_project called")
         self._select_scope("project")
 
     def action_select_local(self) -> None:
         """Select local scope."""
+        import logging
+
+        logger = logging.getLogger(__name__)
+        logger.debug("[SCOPE SELECTOR] action_select_local called")
         self._select_scope("local")
 
     def _select_scope(self, scope: str) -> None:
         """Handle scope selection."""
-        if not self._plugin:
-            return
+        import logging
 
-        status = self._scope_status.get(scope, "not_installed")
-        action = self._action
+        logger = logging.getLogger(__name__)
 
-        # Validate action against current status
-        if status == "enabled":
-            # Already enabled - can't enable again
-            if action == "enable":
-                self._show_warning(
-                    f"Plugin already enabled in {scope.capitalize()} scope"
-                )
+        try:
+            if not self._plugin:
+                logger.debug("[SCOPE SELECTOR] ERROR: No plugin set!")
                 return
-            # Can disable enabled plugin
-            elif action == "disable":
-                pass  # Use the disable action
-            # Can uninstall enabled plugin
-            elif action == "uninstall":
-                pass  # Use the uninstall action
-        elif status == "disabled":
-            # Disabled - can enable
-            if action == "enable":
-                pass  # Use the enable action
-            # Can't disable disabled plugin
-            elif action == "disable":
-                self._show_warning(
-                    f"Plugin already disabled in {scope.capitalize()} scope"
-                )
-                return
-            # Can uninstall disabled plugin
-            elif action == "uninstall":
-                pass  # Use the uninstall action
-        elif status == "not_installed":
-            if scope == "user":
-                # User scope: can't disable or uninstall what's not installed
-                if action in ("disable", "uninstall"):
-                    self._show_warning(
-                        f"Plugin not installed in {scope.capitalize()} scope"
-                    )
-                    return
-                elif action == "install":
-                    pass  # Install
-                elif action == "enable":
-                    action = "install"  # Enable = install when not installed
-            else:
-                # Project/Local scopes: allow disable (may override user enable)
-                # Allow all actions, CLI will handle validation
-                if action == "install":
-                    pass  # Install
-                elif action == "enable":
-                    action = "install"  # Enable = install
-                # disable is always allowed for project/local
-                elif action == "disable":
-                    pass  # Disable
-                elif action == "uninstall":
-                    pass  # Uninstall
 
-        self.hide()
-        self.post_message(self.ScopeSelected(self._plugin, scope, action))
+            logger.debug(
+                f"[SCOPE SELECTOR] _select_scope: scope={scope}, action={self._action}, plugin={self._plugin.full_plugin_id}"
+            )
+
+            # Store plugin reference before hiding (hide() sets self._plugin to None)
+            plugin = self._plugin
+            action = self._action
+
+            self.hide()
+            logger.debug("[SCOPE SELECTOR] Hidden, posting ScopeSelected message")
+
+            message = self.ScopeSelected(plugin, scope, action)
+            logger.debug(
+                f"[SCOPE SELECTOR] Message created: plugin={message.plugin.full_plugin_id}, scope={message.scope}, action={message.action}"
+            )
+
+            self.post_message(message)
+            logger.debug("[SCOPE SELECTOR] Message posted successfully")
+        except Exception as e:
+            logger.debug(f"[SCOPE SELECTOR] EXCEPTION: {type(e).__name__}: {e}")
+            import traceback
+
+            logger.debug(f"[SCOPE SELECTOR] Traceback:\n{traceback.format_exc()}")
+            self.app.notify(f"Error in scope selector: {e}", severity="error")  # type: ignore[attr-defined]
 
     def _show_warning(self, message: str) -> None:
         """Show warning message to user."""
