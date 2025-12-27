@@ -19,6 +19,7 @@ from lazyclaude.widgets.marketplace_modal import MarketplaceModal
 if TYPE_CHECKING:
     from lazyclaude.services.discovery import ConfigDiscoveryService
     from lazyclaude.services.marketplace_loader import MarketplaceLoader
+    from lazyclaude.services.plugin_loader import PluginLoader
     from lazyclaude.widgets.combined_panel import CombinedPanel
     from lazyclaude.widgets.detail_pane import MainPane
     from lazyclaude.widgets.filter_input import FilterInput
@@ -31,6 +32,7 @@ class MarketplaceMixin:
 
     _marketplace_modal: MarketplaceModal | None
     _marketplace_loader: "MarketplaceLoader | None"
+    _plugin_loader: "PluginLoader | None"
     _plugin_preview_mode: bool
     _previewing_plugin: MarketplacePlugin | None
     _plugin_customizations: list[Customization]
@@ -151,40 +153,24 @@ class MarketplaceMixin:
     def on_marketplace_modal_plugin_toggled(
         self, message: MarketplaceModal.PluginToggled
     ) -> None:
-        """Handle plugin toggle/install from marketplace modal."""
-        plugin = message.plugin
+        """Handle plugin toggle/install from marketplace modal (DEPRECATED - use scope selector).
 
-        if not plugin.is_installed:
-            cmd = ["claude", "plugin", "install", plugin.full_plugin_id]
-            action_msg = f"Installing {plugin.name}..."
-            success_msg = f"Installed {plugin.name}"
-        elif plugin.is_enabled:
-            cmd = ["claude", "plugin", "disable", plugin.full_plugin_id]
-            action_msg = f"Disabling {plugin.name}..."
-            success_msg = f"Disabled {plugin.name}"
-        else:
-            cmd = ["claude", "plugin", "enable", plugin.full_plugin_id]
-            action_msg = f"Enabling {plugin.name}..."
-            success_msg = f"Enabled {plugin.name}"
-
-        self.notify(action_msg, severity="information", timeout=2.0)  # type: ignore[attr-defined]
-        self._run_plugin_command(cmd, success_msg)
+        This handler is kept for compatibility but should not be called anymore
+        since we now use the scope selector for all plugin operations.
+        """
+        # This handler is deprecated - scope selector is used instead
+        pass
 
     def on_marketplace_modal_plugin_uninstall(
         self, message: MarketplaceModal.PluginUninstall
     ) -> None:
-        """Handle plugin uninstall from marketplace modal."""
-        plugin = message.plugin
+        """Handle plugin uninstall from marketplace modal (DEPRECATED - use scope selector).
 
-        if not plugin.is_installed:
-            self.notify("Plugin not installed", severity="warning")  # type: ignore[attr-defined]
-            return
-
-        self.notify(  # type: ignore[attr-defined]
-            f"Uninstalling {plugin.name}...", severity="information", timeout=2.0
-        )
-        cmd = ["claude", "plugin", "uninstall", plugin.full_plugin_id]
-        self._run_plugin_command(cmd, f"Uninstalled {plugin.name}")
+        This handler is kept for compatibility but should not be called anymore
+        since we now use the scope selector for all plugin operations.
+        """
+        # This handler is deprecated - scope selector is used instead
+        pass
 
     @work(thread=True)
     def _run_plugin_command(self, cmd: list[str], success_msg: str) -> None:
@@ -294,3 +280,95 @@ class MarketplaceMixin:
     ) -> None:
         """Handle marketplace modal close."""
         self._restore_focus_after_selector()  # type: ignore[attr-defined]
+
+    def on_marketplace_modal_scope_selected(
+        self, message: MarketplaceModal.ScopeSelected
+    ) -> None:
+        """Handle scope selection for plugin action."""
+        plugin = message.plugin
+        scope = message.scope
+        action = message.action
+
+        # Build command with scope
+        cmd = self._build_plugin_command_with_scope(plugin, scope, action)
+
+        # Determine messages
+        action_msg = f"{action.capitalize()}ing {plugin.name}..."
+        success_msg = f"{action.capitalize()}ed {plugin.name}"
+
+        self.notify(action_msg, severity="information", timeout=2.0)  # type: ignore[attr-defined]
+        self._run_plugin_command(cmd, success_msg)
+
+    def _build_plugin_command_with_scope(
+        self, plugin: MarketplacePlugin, scope: str, action: str
+    ) -> list[str]:
+        """Build claude CLI command with scope parameter."""
+        plugin_id = plugin.full_plugin_id
+
+        if action == "install":
+            cmd = ["claude", "plugin", "install", "-s", scope, plugin_id]
+        elif action == "enable":
+            cmd = ["claude", "plugin", "enable", "-s", scope, plugin_id]
+        elif action == "disable":
+            cmd = ["claude", "plugin", "disable", "-s", scope, plugin_id]
+        elif action == "uninstall":
+            cmd = ["claude", "plugin", "uninstall", "-s", scope, plugin_id]
+        else:
+            cmd = []
+
+        return cmd
+
+    def _get_plugin_scope_status(self, plugin: MarketplacePlugin) -> dict[str, str]:
+        """Get installation/enabled status for a plugin across all scopes.
+
+        Args:
+            plugin: The plugin to check
+
+        Returns:
+            Dict mapping scope names to status:
+            "enabled", "disabled", or "not_installed"
+        """
+        if not self._plugin_loader:
+            return {
+                "user": "not_installed",
+                "project": "not_installed",
+                "local": "not_installed",
+            }
+
+        registry = self._plugin_loader.load_registry()
+        plugin_id = plugin.full_plugin_id
+
+        status: dict[str, str] = {}
+
+        # Check each scope
+        for scope_type, scope_key in [
+            ("user", "user"),
+            ("project", "project"),
+            ("local", "local"),
+        ]:
+            # Check if installed in this scope
+            installations = registry.installed.get(plugin_id, [])
+            installed = any(
+                inst.scope == scope_type
+                and (
+                    scope_type == "user"
+                    or self._plugin_loader._matches_current_project(inst.project_path)
+                )
+                for inst in installations
+            )
+
+            if not installed:
+                status[scope_key] = "not_installed"
+                continue
+
+            # Check enabled status
+            if scope_type == "user":
+                enabled = registry.user_enabled.get(plugin_id, True)
+            elif scope_type == "project":
+                enabled = registry.project_enabled.get(plugin_id, True)
+            else:  # local
+                enabled = registry.local_enabled.get(plugin_id, True)
+
+            status[scope_key] = "enabled" if enabled else "disabled"
+
+        return status

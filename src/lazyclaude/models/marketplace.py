@@ -38,6 +38,9 @@ class MarketplacePlugin:
     install_path: Path | None = None
     installed_version: str | None = None
     extra_metadata: dict[str, Any] = field(default_factory=dict)
+    scope_status: dict[str, str] = field(
+        default_factory=dict
+    )  # {"user": "enabled", ...}
 
 
 @dataclass

@@ -123,6 +123,9 @@ class MarketplaceLoader:
         install_path = (self._install_paths or {}).get(full_id)
         installed_version = (self._installed_versions or {}).get(full_id)
 
+        # Get scope status
+        scope_status = self._get_plugin_scope_status(full_id)
+
         return MarketplacePlugin(
             name=name,
             description=data.get("description", ""),
@@ -138,6 +141,7 @@ class MarketplaceLoader:
                 for k, v in data.items()
                 if k not in ("name", "description", "source")
             },
+            scope_status=scope_status,
         )
 
     def _load_installed_plugins(self) -> None:
@@ -235,3 +239,55 @@ class MarketplaceLoader:
         self._marketplaces_cache = None
         if self._plugin_loader:
             self._plugin_loader._registry = None
+
+    def _get_plugin_scope_status(self, plugin_id: str) -> dict[str, str]:
+        """Get installation/enabled status for a plugin across all scopes.
+
+        Args:
+            plugin_id: The plugin ID to check
+
+        Returns:
+            Dict mapping scope names to status: "enabled", "disabled", or "not_installed"
+        """
+        if not self._plugin_loader:
+            return {
+                "user": "not_installed",
+                "project": "not_installed",
+                "local": "not_installed",
+            }
+
+        registry = self._plugin_loader.load_registry()
+        status: dict[str, str] = {}
+
+        # Check each scope
+        for scope_type, scope_key in [
+            ("user", "user"),
+            ("project", "project"),
+            ("local", "local"),
+        ]:
+            # Check if installed in this scope
+            installations = registry.installed.get(plugin_id, [])
+            installed = any(
+                inst.scope == scope_type
+                and (
+                    scope_type == "user"
+                    or self._plugin_loader._matches_current_project(inst.project_path)
+                )
+                for inst in installations
+            )
+
+            if not installed:
+                status[scope_key] = "not_installed"
+                continue
+
+            # Check enabled status
+            if scope_type == "user":
+                enabled = registry.user_enabled.get(plugin_id, True)
+            elif scope_type == "project":
+                enabled = registry.project_enabled.get(plugin_id, True)
+            else:  # local
+                enabled = registry.local_enabled.get(plugin_id, True)
+
+            status[scope_key] = "enabled" if enabled else "disabled"
+
+        return status

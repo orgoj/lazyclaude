@@ -11,6 +11,7 @@ from textual.widgets import Static, Tree
 from lazyclaude.models.marketplace import Marketplace, MarketplacePlugin
 from lazyclaude.services.marketplace_loader import MarketplaceLoader
 from lazyclaude.widgets.filter_input import FilterInput
+from lazyclaude.widgets.scope_selector import ScopeSelector
 
 
 class MarketplaceModal(Widget):
@@ -143,6 +144,15 @@ class MarketplaceModal(Widget):
             self.plugin = plugin
             super().__init__()
 
+    class ScopeSelected(Message):
+        """Emitted when user selects a scope for plugin action."""
+
+        def __init__(self, plugin: MarketplacePlugin, scope: str, action: str) -> None:
+            self.plugin = plugin
+            self.scope = scope
+            self.action = action
+            super().__init__()
+
     def __init__(
         self,
         name: str | None = None,
@@ -155,6 +165,7 @@ class MarketplaceModal(Widget):
         self._tree: Tree[MarketplacePlugin | Marketplace | None] | None = None
         self._filter_query: str = ""
         self._filter_input: FilterInput | None = None
+        self._scope_selector: ScopeSelector | None = None
 
     def compose(self) -> ComposeResult:
         tree: Tree[MarketplacePlugin | Marketplace | None] = Tree(
@@ -166,6 +177,8 @@ class MarketplaceModal(Widget):
         self._filter_input = FilterInput(id="marketplace-filter")
         yield self._filter_input
         yield Static("", id="marketplace-footer")
+        self._scope_selector = ScopeSelector()
+        yield self._scope_selector
 
     def on_tree_node_highlighted(
         self, event: Tree.NodeHighlighted[MarketplacePlugin | Marketplace | None]
@@ -321,10 +334,29 @@ class MarketplaceModal(Widget):
 
     def _render_plugin_label(self, plugin: MarketplacePlugin) -> str:
         """Render a plugin node label."""
-        if plugin.is_installed:
-            status_icon = "[green]I[/]" if plugin.is_enabled else "[yellow]D[/]"
-        else:
+        # Get installed scopes from scope_status
+        installed_scopes = [
+            scope
+            for scope, status in plugin.scope_status.items()
+            if status != "not_installed"
+        ]
+
+        if not installed_scopes:
+            # Not installed anywhere
             status_icon = "[ ]"
+        else:
+            # Check if enabled in any scope
+            enabled_in_any = any(
+                status == "enabled" for status in plugin.scope_status.values()
+            )
+
+            # Scope letters: u=user, p=project, l=local
+            scope_letters = "".join(
+                [s[0] for s in ["user", "project", "local"] if s in installed_scopes]
+            )
+
+            prefix = "[I" if enabled_in_any else "[D"
+            status_icon = f"{prefix}{scope_letters}]"
 
         version_display = ""
         if plugin.is_installed and plugin.installed_version:
@@ -384,7 +416,7 @@ class MarketplaceModal(Widget):
             self._tree.focus()
 
     def action_toggle_plugin(self) -> None:
-        """Toggle or install the selected plugin."""
+        """Toggle or install the selected plugin with scope selector."""
         if not self._tree:
             return
 
@@ -393,11 +425,12 @@ class MarketplaceModal(Widget):
             return
 
         data = node.data
-        if isinstance(data, MarketplacePlugin):
-            self.post_message(self.PluginToggled(data))
+        if isinstance(data, MarketplacePlugin) and self._scope_selector:
+            # Show scope selector instead of direct toggle
+            self._scope_selector.show(data, data.scope_status, action="enable")
 
     def action_uninstall_plugin(self) -> None:
-        """Uninstall the selected plugin."""
+        """Uninstall the selected plugin with scope selector."""
         if not self._tree:
             return
 
@@ -406,8 +439,9 @@ class MarketplaceModal(Widget):
             return
 
         data = node.data
-        if isinstance(data, MarketplacePlugin):
-            self.post_message(self.PluginUninstall(data))
+        if isinstance(data, MarketplacePlugin) and self._scope_selector:
+            # Show scope selector for uninstall
+            self._scope_selector.show(data, data.scope_status, action="uninstall")
 
     def action_open_plugin_folder(self) -> None:
         """Open the selected plugin's folder."""
@@ -531,6 +565,24 @@ class MarketplaceModal(Widget):
                         self._tree.select_node(child)
                         self._update_footer(child_data)
                         return
+
+    def on_scope_selector_scope_selected(
+        self, message: ScopeSelector.ScopeSelected
+    ) -> None:
+        """Handle scope selection from scope selector."""
+        # Emit to parent for handling
+        self.post_message(
+            self.ScopeSelected(message.plugin, message.scope, message.action)
+        )
+
+    def on_scope_selector_selection_cancelled(
+        self,
+        message: ScopeSelector.SelectionCancelled,  # noqa: ARG002
+    ) -> None:
+        """Handle scope selector cancellation."""
+        # Just return focus to tree
+        if self._tree:
+            self._tree.focus()
 
     @property
     def is_visible(self) -> bool:
