@@ -22,7 +22,7 @@ class ScopeSelector(Widget):
     DEFAULT_CSS = """
     ScopeSelector {
         dock: bottom;
-        height: 3;
+        height: 4;
         border: solid $accent;
         padding: 0 1;
         margin-bottom: 1;
