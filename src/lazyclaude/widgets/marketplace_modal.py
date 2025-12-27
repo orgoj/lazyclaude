@@ -24,7 +24,7 @@ class MarketplaceModal(Widget):
         Binding("I", "install_plugin", "Install", show=False),
         Binding("E", "enable_plugin", "Enable", show=False),
         Binding("D", "disable_plugin", "Disable", show=False),
-        Binding("U", "uninstall_plugin", "Uninstall", show=False),
+        Binding("U", "action_uninstall", "Uninstall", show=False),
         # Existing bindings (keep lowercase e, u)
         Binding("p", "preview_plugin", "Preview", show=False),
         Binding("e", "open_plugin_folder", "Edit", show=False),
@@ -414,23 +414,7 @@ class MarketplaceModal(Widget):
         if self._tree:
             self._tree.focus()
 
-    def action_toggle_plugin(self) -> None:
-        """Toggle or install the selected plugin with scope selector."""
-        if not self._tree:
-            return
-
-        node = self._tree.cursor_node
-        if node is None:
-            return
-
-        data = node.data
-        if isinstance(data, MarketplacePlugin) and self._scope_selector:
-            # Determine action based on whether plugin is enabled in any scope
-            # Same logic as footer display
-            action = "enable" if not data.is_enabled else "disable"
-            self._scope_selector.show(data, data.scope_status, action=action)
-
-    def action_uninstall_plugin(self) -> None:
+    def action_uninstall(self) -> None:
         """Uninstall the selected plugin with scope selector."""
         if not self._tree:
             return
