@@ -159,6 +159,9 @@ class ScopeSelector(Widget):
             # Can disable enabled plugin
             elif action == "disable":
                 pass  # Use the disable action
+            # Can uninstall enabled plugin
+            elif action == "uninstall":
+                pass  # Use the uninstall action
         elif status == "disabled":
             # Disabled - can enable
             if action == "enable":
@@ -169,18 +172,33 @@ class ScopeSelector(Widget):
                     f"Plugin already disabled in {scope.capitalize()} scope"
                 )
                 return
+            # Can uninstall disabled plugin
+            elif action == "uninstall":
+                pass  # Use the uninstall action
         elif status == "not_installed":
-            # Not installed - can only install
-            if action == "disable":
-                self._show_warning(
-                    f"Plugin not installed in {scope.capitalize()} scope - cannot disable"
-                )
-                return
-            elif action == "install":
-                pass  # Use install action
-            elif action == "enable":
-                # Enable on not_installed = install
-                action = "install"
+            if scope == "user":
+                # User scope: can't disable or uninstall what's not installed
+                if action in ("disable", "uninstall"):
+                    self._show_warning(
+                        f"Plugin not installed in {scope.capitalize()} scope"
+                    )
+                    return
+                elif action == "install":
+                    pass  # Install
+                elif action == "enable":
+                    action = "install"  # Enable = install when not installed
+            else:
+                # Project/Local scopes: allow disable (may override user enable)
+                # Allow all actions, CLI will handle validation
+                if action == "install":
+                    pass  # Install
+                elif action == "enable":
+                    action = "install"  # Enable = install
+                # disable is always allowed for project/local
+                elif action == "disable":
+                    pass  # Disable
+                elif action == "uninstall":
+                    pass  # Uninstall
 
         self.hide()
         self.post_message(self.ScopeSelected(self._plugin, scope, action))
