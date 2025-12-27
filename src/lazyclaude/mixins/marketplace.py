@@ -161,28 +161,6 @@ class MarketplaceMixin:
         """Handle plugin preview request from marketplace modal."""
         self._enter_plugin_preview(message.plugin)
 
-    def on_marketplace_modal_plugin_toggled(
-        self, message: MarketplaceModal.PluginToggled
-    ) -> None:
-        """Handle plugin toggle/install from marketplace modal (DEPRECATED - use scope selector).
-
-        This handler is kept for compatibility but should not be called anymore
-        since we now use the scope selector for all plugin operations.
-        """
-        # This handler is deprecated - scope selector is used instead
-        pass
-
-    def on_marketplace_modal_plugin_uninstall(
-        self, message: MarketplaceModal.PluginUninstall
-    ) -> None:
-        """Handle plugin uninstall from marketplace modal (DEPRECATED - use scope selector).
-
-        This handler is kept for compatibility but should not be called anymore
-        since we now use the scope selector for all plugin operations.
-        """
-        # This handler is deprecated - scope selector is used instead
-        pass
-
     @work(thread=True)
     def _run_plugin_command(self, cmd: list[str], success_msg: str) -> None:
         """Run a plugin command in a background worker."""
