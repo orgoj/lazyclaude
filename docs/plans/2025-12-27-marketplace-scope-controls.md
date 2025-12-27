@@ -439,78 +439,259 @@ git commit -m "chore: pass all quality gates"
 
 ---
 
-## Task 9: Manual testing checklist
+## Task 9: Add unit tests
 
 **Files:**
-- Application runtime
+- Create: `tests/unit/widgets/test_scope_selector.py`
+- Create: `tests/unit/widgets/test_marketplace_modal.py`
+- Create: `tests/unit/mixins/test_marketplace.py`
 
-**Step 1: Test Install (I)**
+**Step 1: Test scope selector validation**
 
-1. Run: `uv run lazyclaude`
-2. Press `M` to open marketplace
-3. Select plugin not installed in any scope
-4. Press `I`
-5. Verify: Scope selector appears with all scopes active
-6. Select scope 1/2/3
-7. Verify: Plugin installs in selected scope
-8. Verify: Success notification shown
-9. Verify: Marketplace tree updates
+Create `tests/unit/widgets/test_scope_selector.py`:
 
-**Step 2: Test Enable (E)**
+```python
+import pytest
+from lazyclaude.models.marketplace import MarketplacePlugin
+from lazyclaude.widgets.scope_selector import ScopeSelector
 
-1. Select plugin installed but disabled
-2. Press `E`
-3. Verify: Scope selector shows status icons
-4. Try selecting enabled scope
-5. Verify: Warning "Already enabled in X scope"
-6. Select disabled/not_installed scope
-7. Verify: Plugin enables in selected scope
-8. Verify: Success notification shown
 
-**Step 3: Test Disable (D)**
+@pytest.fixture
+def plugin():
+    return MarketplacePlugin(
+        name="test-plugin",
+        description="Test plugin",
+        source="https://github.com/test/plugin",
+        marketplace_name="test-market",
+        full_plugin_id="test-plugin@test-market",
+        is_installed=False,
+        is_enabled=True,
+        scope_status={"user": "enabled", "project": "not_installed", "local": "not_installed"},
+    )
 
-1. Select plugin enabled in USER scope
-2. Press `D`
-3. Verify: Scope selector shows status icons
-4. Select PROJECT scope (not_installed)
-5. Verify: Selector allows this (no warning)
-6. Verify: CLI command executes
-7. Verify: Success/error message from CLI
 
-**Step 4: Test Uninstall (U)**
+def test_enabled_scope_cannot_enable_again(app, plugin):
+    """Test enabling an already-enabled plugin shows warning."""
+    selector = ScopeSelector()
+    selector.show(plugin, plugin.scope_status, action="enable")
 
-1. Select plugin installed in some scope
-2. Press `U`
-3. Verify: Scope selector shows installation status
-4. Try selecting not_installed scope
-5. Verify: Warning "Not installed in X scope"
-6. Select installed scope
-7. Verify: Plugin uninstalls from selected scope
-8. Verify: Success notification shown
+    # User scope is enabled - should show warning
+    selector._select_scope("user")
+    # Warning should be shown, no message posted
+    assert not selector.is_visible
 
-**Step 5: Test all keys work**
 
-1. Verify: `I` always works (even if installed)
-2. Verify: `E` always works (even if disabled)
-3. Verify: `D` always works (even if not_installed in project/local)
-4. Verify: `U` always works (if installed somewhere)
-5. Verify: `p` preview works
-6. Verify: `e` edit folder works
-7. Verify: `o` open source works
-8. Verify: `u` update works
-9. Verify: `Esc` closes marketplace
+def test_user_not_installed_cannot_disable(app, plugin):
+    """Test disabling non-installed plugin in user scope shows warning."""
+    selector = ScopeSelector()
+    plugin.scope_status = {"user": "not_installed", "project": "not_installed", "local": "not_installed"}
+    selector.show(plugin, plugin.scope_status, action="disable")
 
-**Step 6: Test edge cases**
+    selector._select_scope("user")
+    # Warning should be shown
+    assert not selector.is_visible
 
-1. Enable in same scope twice → Second attempt shows warning
-2. Disable in same scope twice → Second attempt shows warning
-3. Install in multiple scopes sequentially → All work
-4. Enable in all three scopes → All work
-5. Disable in project when user enabled → Works (CLI handles)
 
-**Step 7: Document any issues**
+def test_project_not_installed_can_disable(app, plugin):
+    """Test disabling in project scope allowed even when not_installed."""
+    selector = ScopeSelector()
+    plugin.scope_status = {"user": "not_installed", "project": "not_installed", "local": "not_installed"}
+    selector.show(plugin, plugin.scope_status, action="disable")
 
-Create list of bugs/edge cases found during testing
+    messages = []
+    def on_scope_selected(msg):
+        messages.append(msg)
+
+    selector.ScopeSelected.connect(on_scope_selected)
+    selector._select_scope("project")
+
+    # Should post ScopeSelected message
+    assert len(messages) == 1
+    assert messages[0].action == "disable"
+
+
+def test_install_always_allowed(app, plugin):
+    """Test install action is always allowed."""
+    selector = ScopeSelector()
+    plugin.scope_status = {"user": "not_installed", "project": "not_installed", "local": "not_installed"}
+    selector.show(plugin, plugin.scope_status, action="install")
+
+    messages = []
+    def on_scope_selected(msg):
+        messages.append(msg)
+
+    selector.ScopeSelected.connect(on_scope_selected)
+    selector._select_scope("user")
+
+    assert len(messages) == 1
+    assert messages[0].action == "install"
+```
+
+**Step 2: Test marketplace action methods**
+
+Create `tests/unit/widgets/test_marketplace_modal.py`:
+
+```python
+import pytest
+from unittest.mock import Mock, MagicMock
+from lazyclaude.widgets.marketplace_modal import MarketplaceModal
+from lazyclaude.models.marketplace import MarketplacePlugin
+
+
+@pytest.fixture
+def mock_scope_selector():
+    return Mock()
+
+
+@pytest.fixture
+def plugin():
+    return MarketplacePlugin(
+        name="test-plugin",
+        description="Test",
+        source="https://github.com/test/plugin",
+        marketplace_name="test-market",
+        full_plugin_id="test-plugin@test-market",
+        scope_status={"user": "not_installed"},
+    )
+
+
+def test_action_install_plugin_shows_scope_selector(app, mock_scope_selector, plugin):
+    """Test install action shows scope selector."""
+    modal = MarketplaceModal()
+    modal._scope_selector = mock_scope_selector
+    modal._tree = Mock()
+    modal._tree.cursor_node = Mock()
+    modal._tree.cursor_node.data = plugin
+
+    modal.action_install_plugin()
+
+    mock_scope_selector.show.assert_called_once_with(plugin, plugin.scope_status, action="install")
+
+
+def test_action_enable_plugin_shows_scope_selector(app, mock_scope_selector, plugin):
+    """Test enable action shows scope selector."""
+    modal = MarketplaceModal()
+    modal._scope_selector = mock_scope_selector
+    modal._tree = Mock()
+    modal._tree.cursor_node = Mock()
+    modal._tree.cursor_node.data = plugin
+
+    modal.action_enable_plugin()
+
+    mock_scope_selector.show.assert_called_once_with(plugin, plugin.scope_status, action="enable")
+
+
+def test_action_disable_plugin_shows_scope_selector(app, mock_scope_selector, plugin):
+    """Test disable action shows scope selector."""
+    modal = MarketplaceModal()
+    modal._scope_selector = mock_scope_selector
+    modal._tree = Mock()
+    modal._tree.cursor_node = Mock()
+    modal._tree.cursor_node.data = plugin
+
+    modal.action_disable_plugin()
+
+    mock_scope_selector.show.assert_called_once_with(plugin, plugin.scope_status, action="disable")
+
+
+def test_action_uninstall_shows_scope_selector(app, mock_scope_selector, plugin):
+    """Test uninstall action shows scope selector."""
+    modal = MarketplaceModal()
+    modal._scope_selector = mock_scope_selector
+    modal._tree = Mock()
+    modal._tree.cursor_node = Mock()
+    modal._tree.cursor_node.data = plugin
+
+    modal.action_uninstall()
+
+    mock_scope_selector.show.assert_called_once_with(plugin, plugin.scope_status, action="uninstall")
+```
+
+**Step 3: Test CLI command builder**
+
+Create `tests/unit/mixins/test_marketplace.py`:
+
+```python
+import pytest
+from lazyclaude.mixins.marketplace import MarketplaceMixin
+from lazyclaude.models.marketplace import MarketplacePlugin
+
+
+@pytest.fixture
+def plugin():
+    return MarketplacePlugin(
+        name="test-plugin",
+        description="Test",
+        source="https://github.com/test/plugin",
+        marketplace_name="test-market",
+        full_plugin_id="test-plugin@test-market",
+    )
+
+
+def test_build_install_command(app, plugin):
+    """Test building install command."""
+    mixin = MarketplaceMixin()
+    mixin.__init__()  # Initialize app attributes
+
+    cmd = mixin._build_plugin_command_with_scope(plugin, "user", "install")
+
+    assert cmd == ["claude", "plugin", "install", "-s", "user", "test-plugin@test-market"]
+
+
+def test_build_enable_command(app, plugin):
+    """Test building enable command."""
+    mixin = MarketplaceMixin()
+    mixin.__init__()
+
+    cmd = mixin._build_plugin_command_with_scope(plugin, "project", "enable")
+
+    assert cmd == ["claude", "plugin", "enable", "-s", "project", "test-plugin@test-market"]
+
+
+def test_build_disable_command(app, plugin):
+    """Test building disable command."""
+    mixin = MarketplaceMixin()
+    mixin.__init__()
+
+    cmd = mixin._build_plugin_command_with_scope(plugin, "local", "disable")
+
+    assert cmd == ["claude", "plugin", "disable", "-s", "local", "test-plugin@test-market"]
+
+
+def test_build_uninstall_command(app, plugin):
+    """Test building uninstall command."""
+    mixin = MarketplaceMixin()
+    mixin.__init__()
+
+    cmd = mixin._build_plugin_command_with_scope(plugin, "user", "uninstall")
+
+    assert cmd == ["claude", "plugin", "uninstall", "-s", "user", "test-plugin@test-market"]
+
+
+def test_build_unknown_action_returns_empty(app, plugin):
+    """Test unknown action returns empty command list."""
+    mixin = MarketplaceMixin()
+    mixin.__init__()
+
+    cmd = mixin._build_plugin_command_with_scope(plugin, "user", "unknown")
+
+    assert cmd == []
+```
+
+**Step 4: Run tests**
+
+Run: `uv run pytest tests/unit/widgets/test_scope_selector.py tests/unit/widgets/test_marketplace_modal.py tests/unit/mixins/test_marketplace.py -v`
+
+**Step 5: Fix any failures**
+
+Address test failures and re-run until all pass.
+
+**Step 6: Commit**
+
+```bash
+git add tests/ src/
+git commit -m "test: add unit tests for marketplace scope controls"
+```
 
 ---
 

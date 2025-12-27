@@ -73,6 +73,7 @@ All code MUST comply with these principles (see `docs/constitution.md`):
 | `g`/`G` | Go to top/bottom | List |
 | `Enter` | Drill down | Context |
 | `Esc` | Back | Context |
+| `I`/`E`/`D`/`U` | Install/Enable/Disable/Uninstall plugin | Marketplace |
 
 ## Architecture
 
@@ -183,8 +184,9 @@ SLASH_COMMAND, SUBAGENT, SKILL, MEMORY_FILE, MCP, HOOK
 - Opens with `M` (Shift+m) as full-screen overlay using `layer: overlay`
 - Uses Textual Tree widget: marketplaces as expandable roots, plugins as leaves
 - Status icons: `[green]I[/]` (installed+enabled), `[yellow]D[/]` (disabled), `[ ]` (not installed)
-- Bindings: `i` (install/toggle), `d` (uninstall), `e` (open folder), `j/k` (nav), `h/l` (collapse/expand)
-- Emits messages: `PluginToggled`, `PluginUninstall`, `OpenPluginFolder`, `ModalClosed`
+- Bindings: `I` (install), `E` (enable), `D` (disable), `U` (uninstall), `e` (open folder), `j/k` (nav), `h/l` (collapse/expand)
+- Four distinct actions replace old toggle model, each with scope selector
+- Emits messages: `PluginAction`, `PluginUninstall`, `OpenPluginFolder`, `ModalClosed`
 
 **Plugin Actions (via Claude CLI):**
 ```bash

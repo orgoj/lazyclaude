@@ -87,13 +87,6 @@ class MarketplaceModal(Widget):
 
     can_focus = True
 
-    class PluginToggled(Message):
-        """Emitted when a plugin toggle/install is requested."""
-
-        def __init__(self, plugin: MarketplacePlugin) -> None:
-            self.plugin = plugin
-            super().__init__()
-
     class PluginUninstall(Message):
         """Emitted when a plugin uninstall is requested."""
 
