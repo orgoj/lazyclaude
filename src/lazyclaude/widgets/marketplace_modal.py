@@ -20,12 +20,17 @@ class MarketplaceModal(Widget):
     BINDINGS = [
         Binding("escape", "close_or_cancel", "Close", show=False),
         Binding("/", "search", "Search", show=False),
-        Binding("i", "toggle_plugin", "Install/Toggle", show=False),
-        Binding("d", "uninstall_plugin", "Uninstall", show=False),
+        # New bindings with Shift+keys
+        Binding("I", "install_plugin", "Install", show=False),
+        Binding("E", "enable_plugin", "Enable", show=False),
+        Binding("D", "disable_plugin", "Disable", show=False),
+        Binding("U", "uninstall_plugin", "Uninstall", show=False),
+        # Existing bindings (keep lowercase e, u)
+        Binding("p", "preview_plugin", "Preview", show=False),
         Binding("e", "open_plugin_folder", "Edit", show=False),
         Binding("o", "open_source", "Open", show=False),
         Binding("u", "update_marketplace", "Update", show=False),
-        Binding("p", "preview_plugin", "Preview", show=False),
+        # Navigation bindings (unchanged)
         Binding("j", "cursor_down", "Down", show=False),
         Binding("k", "cursor_up", "Up", show=False),
         Binding("space", "toggle_node", "Toggle", show=False),
@@ -444,6 +449,45 @@ class MarketplaceModal(Widget):
         if isinstance(data, MarketplacePlugin) and self._scope_selector:
             # Show scope selector for uninstall
             self._scope_selector.show(data, data.scope_status, action="uninstall")
+
+    def action_install_plugin(self) -> None:
+        """Install the selected plugin with scope selector."""
+        if not self._tree:
+            return
+
+        node = self._tree.cursor_node
+        if node is None:
+            return
+
+        data = node.data
+        if isinstance(data, MarketplacePlugin) and self._scope_selector:
+            self._scope_selector.show(data, data.scope_status, action="install")
+
+    def action_enable_plugin(self) -> None:
+        """Enable the selected plugin with scope selector."""
+        if not self._tree:
+            return
+
+        node = self._tree.cursor_node
+        if node is None:
+            return
+
+        data = node.data
+        if isinstance(data, MarketplacePlugin) and self._scope_selector:
+            self._scope_selector.show(data, data.scope_status, action="enable")
+
+    def action_disable_plugin(self) -> None:
+        """Disable the selected plugin with scope selector."""
+        if not self._tree:
+            return
+
+        node = self._tree.cursor_node
+        if node is None:
+            return
+
+        data = node.data
+        if isinstance(data, MarketplacePlugin) and self._scope_selector:
+            self._scope_selector.show(data, data.scope_status, action="disable")
 
     def action_open_plugin_folder(self) -> None:
         """Open the selected plugin's folder."""
