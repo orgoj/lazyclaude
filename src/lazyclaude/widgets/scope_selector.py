@@ -40,9 +40,7 @@ class ScopeSelector(Widget):
 
     ScopeSelector #prompt {
         width: 100%;
-        height: 1fr;
         text-align: center;
-        content-align: center;
     }
 
     ScopeSelector .key {
