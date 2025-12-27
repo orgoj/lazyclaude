@@ -66,6 +66,17 @@ class MarketplaceMixin:
 
         plugin_dir = self._marketplace_loader.get_plugin_source_dir(plugin)
         if not plugin_dir or not plugin_dir.exists():
+            # If source is a URL, open in browser instead of showing error
+            if plugin.source.startswith(("http://", "https://")):
+                import webbrowser
+
+                webbrowser.open(plugin.source)
+                self.notify(  # type: ignore[attr-defined]
+                    f"Opening {plugin.name} source in browser",
+                    severity="information",
+                )
+                return
+
             self.notify("Plugin source not found", severity="warning")  # type: ignore[attr-defined]
             return
 
