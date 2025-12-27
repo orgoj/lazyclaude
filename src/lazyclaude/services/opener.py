@@ -33,9 +33,15 @@ def open_github_source(repo: str, sub_path: str | None = None) -> None:
 
     Args:
         repo: GitHub repository in "owner/repo" format.
-        sub_path: Optional path within the repository to open.
+        sub_path: Optional path within the repository to open. Can be a relative
+                  path or a full GitHub URL.
     """
     url = f"https://github.com/{repo}"
     if sub_path:
-        url = f"{url}/tree/main/{sub_path}"
+        # If sub_path is already a full GitHub URL, use it directly
+        if sub_path.startswith("https://github.com/"):
+            url = sub_path
+        # Otherwise treat it as a relative path within the repo
+        else:
+            url = f"{url}/tree/main/{sub_path}"
     webbrowser.open(url)

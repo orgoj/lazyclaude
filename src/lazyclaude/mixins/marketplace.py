@@ -222,6 +222,13 @@ class MarketplaceMixin:
             if plugin.is_installed and plugin.install_path:
                 path = plugin.install_path
             else:
+                # Skip if source is a full URL (not a local path)
+                if plugin.source.startswith(("http://", "https://")):
+                    self.notify(  # type: ignore[attr-defined]
+                        f"Cannot open file explorer for remote URL: {plugin.source}",
+                        severity="warning",
+                    )
+                    return
                 path = (marketplace.entry.install_location / plugin.source).resolve()
 
             success, error = open_in_file_explorer(path)

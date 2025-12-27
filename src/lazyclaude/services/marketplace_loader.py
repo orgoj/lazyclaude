@@ -199,6 +199,9 @@ class MarketplaceLoader:
 
         marketplace = self._find_marketplace(plugin.marketplace_name)
         if marketplace:
+            # Skip source lookup if source is a full URL (not a relative path)
+            if plugin.source.startswith(("http://", "https://")):
+                return None
             plugin_dir = (marketplace.entry.install_location / plugin.source).resolve()
             if plugin_dir.exists():
                 return plugin_dir
