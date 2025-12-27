@@ -29,7 +29,9 @@ class SlashCommandParser(ICustomizationParser):
         Args:
             commands_dir: Path to the commands directory (e.g., ~/.claude/commands)
         """
-        self.commands_dir = commands_dir
+        # Convert to string and back to Path to ensure pyfakefs compatibility
+        # This fixes Path incompatibility between real and fake filesystems
+        self.commands_dir = Path(str(commands_dir))
 
     def can_parse(self, path: Path) -> bool:
         """Check if path is a markdown file in commands directory."""

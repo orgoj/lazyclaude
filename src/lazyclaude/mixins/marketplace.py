@@ -188,9 +188,9 @@ class MarketplaceMixin:
         elif "already enabled" in error_msg.lower():
             self.notify("Plugin already enabled in specified scope", severity="warning")  # type: ignore[attr-defined]
         elif "already disabled" in error_msg.lower():
-            self.notify(
+            self.notify(  # type: ignore[attr-defined]
                 "Plugin already disabled in specified scope", severity="warning"
-            )  # type: ignore[attr-defined]
+            )
         else:
             self.notify(error_msg, severity="error")  # type: ignore[attr-defined]
 

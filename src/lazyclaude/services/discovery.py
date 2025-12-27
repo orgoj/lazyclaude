@@ -477,6 +477,8 @@ class ConfigDiscoveryService(IConfigDiscoveryService):
         seen_paths: set[Path] = set()
 
         user_rules_dir = self.user_config_path / "rules"
+        # Convert to string and back to ensure pyfakefs compatibility
+        user_rules_dir = Path(str(user_rules_dir))
         if user_rules_dir.is_dir():
             for rule_file in self._gitignore_filter.walk_filtered(
                 user_rules_dir, "*.md"
@@ -493,6 +495,8 @@ class ConfigDiscoveryService(IConfigDiscoveryService):
                 customizations.append(customization)
 
         project_rules_dir = self.project_config_path / "rules"
+        # Convert to string and back to ensure pyfakefs compatibility
+        project_rules_dir = Path(str(project_rules_dir))
         if project_rules_dir.is_dir():
             for rule_file in self._gitignore_filter.walk_filtered(
                 project_rules_dir, "*.md"
