@@ -193,6 +193,7 @@ class MarketplaceModal(Widget):
         self._text_input: TextInputModal | None = None
         self._installed_only_filter: bool = False
         self._auto_collapse: bool = True
+        self._collapsed_marketplaces: set[str] = set()  # Track collapsed, default=expanded
 
     def compose(self) -> ComposeResult:
         tree: Tree[MarketplacePlugin | Marketplace | None] = Tree(
@@ -271,6 +272,7 @@ class MarketplaceModal(Widget):
             self._installed_only_filter = False
             self._auto_collapse = auto_collapse
             self._marketplace_order = []
+            self._collapsed_marketplaces.clear()  # Reset expand state on fresh open
             self._load_data()
             self._build_tree()
             self._select_first_node()
@@ -320,6 +322,15 @@ class MarketplaceModal(Widget):
         if not self._tree:
             return
 
+        # Update persistent collapsed state from current tree
+        for node in self._tree.root.children:
+            if isinstance(node.data, Marketplace):
+                name = node.data.entry.name
+                if node.is_expanded:
+                    self._collapsed_marketplaces.discard(name)
+                else:
+                    self._collapsed_marketplaces.add(name)
+
         self._tree.clear()
 
         filtered = self._get_filtered_marketplaces()
@@ -342,9 +353,8 @@ class MarketplaceModal(Widget):
                     plugin_label = self._render_plugin_label(plugin)
                     mp_node.add_leaf(plugin_label, data=plugin)
 
-            installed_count = sum(1 for p in marketplace.plugins if p.is_installed)
-            should_collapse = len(marketplace.plugins) > 20 or installed_count == 0
-            if self._auto_collapse and should_collapse:
+            # Restore state: collapsed if in set, otherwise expanded (default)
+            if marketplace.entry.name in self._collapsed_marketplaces:
                 mp_node.collapse()
             else:
                 mp_node.expand()
