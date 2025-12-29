@@ -220,39 +220,29 @@ class MarketplaceModal(Widget):
         """Update footer based on selected item."""
         footer = self.query_one("#marketplace-footer", Static)
 
-        installed_toggle = format_keybinding(
-            "I", "Installed", active=self._installed_only_filter
+        installed_filter = format_keybinding(
+            "i", "Installed", active=self._installed_only_filter
         )
-        search_toggle = format_keybinding(
+        search_filter = format_keybinding(
             "/", "Search", active=bool(self._filter_query)
         )
 
         sep = "[dim]│[/]"
-        nav = "[bold]L[/] Expand  [bold]H[/] Collapse"
-        add_mp = "[bold]A[/] Add Marketplace"
-        filters = f"{installed_toggle}  {search_toggle}"
-        close = "[bold]Esc[/] Close"
+        nav = f"{installed_filter}  {search_filter}  [bold]L[/] Expand  [bold]H[/] Collapse  [bold]Esc[/] Close"
 
         if isinstance(data, MarketplacePlugin):
-            # Plugin actions with scope-aware keys
-            actions = (
-                "[bold]p[/] Preview  [bold]I[/] Install  [bold]E[/] Enable  "
-                "[bold]D[/] Disable  [bold]u[/] Update  [bold]U[/] Uninstall  "
-                "[bold]e[/] Edit  [bold]o[/] Open"
-            )
-            footer.update(
-                f"{actions}  {sep}  {nav}  {sep}  {add_mp}  {sep}  {filters}  {sep}  {close}"
-            )
+            # Plugin: o Open  e Edit  p Preview │ A Add  I Install  E Enable  D Disable  u Update  U Remove │ nav
+            view = "[bold]o[/] Open  [bold]e[/] Edit  [bold]p[/] Preview"
+            actions = "[bold]A[/] Add  [bold]I[/] Install  [bold]E[/] Enable  [bold]D[/] Disable  [bold]u[/] Update  [bold]U[/] Remove"
+            footer.update(f"{view}  {sep}  {actions}  {sep}  {nav}")
         elif isinstance(data, Marketplace):
-            actions = (
-                "[bold]Space[/] Toggle  [bold]u[/] Update  "
-                "[bold]U[/] Remove  [bold]o[/] Open"
-            )
-            footer.update(
-                f"{actions}  {sep}  {nav}  {sep}  {add_mp}  {sep}  {filters}  {sep}  {close}"
-            )
+            # Marketplace: o Open │ A Add  u Update  U Remove │ nav
+            view = "[bold]o[/] Open"
+            actions = "[bold]A[/] Add  [bold]u[/] Update  [bold]U[/] Remove"
+            footer.update(f"{view}  {sep}  {actions}  {sep}  {nav}")
         else:
-            footer.update(f"{add_mp}  {sep}  {nav}  {sep}  {filters}  {sep}  {close}")
+            # No selection: A Add │ nav
+            footer.update(f"[bold]A[/] Add  {sep}  {nav}")
 
     def set_loader(self, loader: MarketplaceLoader) -> None:
         """Set the marketplace loader."""
