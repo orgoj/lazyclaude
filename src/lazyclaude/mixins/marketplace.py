@@ -226,11 +226,12 @@ class MarketplaceMixin:
         plugin = message.plugin
 
         if not plugin.install_path or not plugin.install_path.exists():
-            self.notify("Plugin folder not found", severity="warning")  # type: ignore[attr-defined]
+            self.notify("Plugin folder not found", severity="error")  # type: ignore[attr-defined]
             return
 
         editor = os.environ.get("EDITOR", "vi")
-        subprocess.Popen([editor, str(plugin.install_path)], shell=True)
+        cmd_str = shlex.join([editor, str(plugin.install_path)])
+        subprocess.Popen(cmd_str, shell=True)
 
     def on_marketplace_modal_open_plugin_source(
         self, message: MarketplaceModal.OpenPluginSource

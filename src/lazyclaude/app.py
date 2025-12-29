@@ -1,6 +1,7 @@
 """Main LazyClaude TUI Application."""
 
 import os
+import shlex
 import subprocess
 import traceback
 from pathlib import Path
@@ -524,7 +525,8 @@ class LazyClaude(
             return
 
         editor = os.environ.get("EDITOR", "vi")
-        subprocess.Popen([editor, str(file_path)], shell=True)
+        cmd_str = shlex.join([editor, str(file_path)])
+        subprocess.Popen(cmd_str, shell=True)
 
     def _open_paths_in_editor(self, paths: list[Path]) -> None:
         """Open paths in $EDITOR with error handling."""
@@ -534,7 +536,8 @@ class LazyClaude(
             return
 
         editor = os.environ.get("EDITOR", "vi")
-        subprocess.Popen([editor] + [str(p) for p in valid_paths], shell=True)
+        cmd_str = shlex.join([editor] + [str(p) for p in valid_paths])
+        subprocess.Popen(cmd_str, shell=True)
 
     def action_open_user_config(self) -> None:
         """Open user config folder (~/.claude/) and settings file in $EDITOR."""

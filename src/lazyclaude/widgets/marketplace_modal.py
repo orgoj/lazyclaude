@@ -493,8 +493,11 @@ class MarketplaceModal(Widget):
             return
 
         data = node.data
-        if isinstance(data, MarketplacePlugin) and data.is_installed:
-            self.post_message(self.OpenPluginFolder(data))
+        if isinstance(data, MarketplacePlugin):
+            if data.is_installed:
+                self.post_message(self.OpenPluginFolder(data))
+            else:
+                self.app.notify("Plugin is not installed", severity="error")
 
     def action_open_source(self) -> None:
         """Open the selected item's source location."""
