@@ -8,7 +8,6 @@ from lazyclaude.widgets.filter_input import FilterInput
 from lazyclaude.widgets.marketplace_modal import MarketplaceModal
 from lazyclaude.widgets.scope_selector import ScopeSelector
 from lazyclaude.widgets.status_panel import StatusPanel
-from lazyclaude.widgets.text_input_modal import TextInputModal
 from lazyclaude.widgets.type_panel import TypePanel
 
 __all__ = [
@@ -20,6 +19,5 @@ __all__ = [
     "MarketplaceModal",
     "ScopeSelector",
     "StatusPanel",
-    "TextInputModal",
     "TypePanel",
 ]

@@ -128,9 +128,7 @@ class ScopeSelector(Widget):
         project_icon = get_icon(self._scope_status.get("project", "not_installed"))
         local_icon = get_icon(self._scope_status.get("local", "not_installed"))
 
-        options_text = (
-            f"{user_icon} [1/u] User  {project_icon} [2/p] Project  {local_icon} [3/l] Local"
-        )
+        options_text = f"{user_icon} [1/u] User  {project_icon} [2/p] Project  {local_icon} [3/l] Local"
         prompt_widget = self.query_one("#prompt", Static)
         prompt_widget.update(
             f"{action_label}: {self._plugin.name}\n{options_text}  \\[Esc] Cancel"

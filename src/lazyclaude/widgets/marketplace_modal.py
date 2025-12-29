@@ -13,7 +13,6 @@ from lazyclaude.services.marketplace_loader import MarketplaceLoader
 from lazyclaude.widgets.filter_input import FilterInput
 from lazyclaude.widgets.helpers.rendering import format_keybinding
 from lazyclaude.widgets.scope_selector import ScopeSelector
-from lazyclaude.widgets.text_input_modal import TextInputModal
 
 
 class MarketplaceModal(Widget):
@@ -26,7 +25,7 @@ class MarketplaceModal(Widget):
         Binding("I", "install_plugin", "Install", show=False),
         Binding("E", "enable_plugin", "Enable", show=False),
         Binding("D", "disable_plugin", "Disable", show=False),
-        Binding("U", "action_uninstall", "Uninstall", show=False),
+        Binding("U", "uninstall", "Uninstall", show=False),
         Binding("A", "add_marketplace", "Add Marketplace", show=False),
         # Lowercase bindings
         Binding("i", "toggle_installed_filter", "Installed Only", show=False),
@@ -191,11 +190,12 @@ class MarketplaceModal(Widget):
         self._filter_query: str = ""
         self._filter_input: FilterInput | None = None
         self._scope_selector: ScopeSelector | None = None
-        self._text_input: TextInputModal | None = None
         self._installed_only_filter: bool = False
         self._enabled_only_filter: bool = False
         self._auto_collapse: bool = True
-        self._collapsed_marketplaces: set[str] = set()  # Track collapsed, default=expanded
+        self._collapsed_marketplaces: set[str] = (
+            set()
+        )  # Track collapsed, default=expanded
 
     def compose(self) -> ComposeResult:
         tree: Tree[MarketplacePlugin | Marketplace | None] = Tree(
@@ -206,8 +206,6 @@ class MarketplaceModal(Widget):
         yield tree
         self._filter_input = FilterInput(id="marketplace-filter")
         yield self._filter_input
-        self._text_input = TextInputModal(id="marketplace-text-input")
-        yield self._text_input
         yield Static("", id="marketplace-footer")
         self._scope_selector = ScopeSelector()
         yield self._scope_selector
@@ -332,7 +330,11 @@ class MarketplaceModal(Widget):
         filtered = self._get_filtered_marketplaces()
 
         if not filtered:
-            if self._filter_query or self._installed_only_filter or self._enabled_only_filter:
+            if (
+                self._filter_query
+                or self._installed_only_filter
+                or self._enabled_only_filter
+            ):
                 self._tree.root.add_leaf("[dim italic]No matches found[/]")
             else:
                 self._tree.root.add_leaf("[dim italic]No marketplaces found[/]")
@@ -381,7 +383,9 @@ class MarketplaceModal(Widget):
             for plugin in marketplace.plugins:
                 if self._installed_only_filter and not plugin.is_installed:
                     continue
-                if self._enabled_only_filter and not (plugin.is_installed and plugin.is_enabled):
+                if self._enabled_only_filter and not (
+                    plugin.is_installed and plugin.is_enabled
+                ):
                     continue
                 if query and not (
                     query in plugin.name.lower()
@@ -657,10 +661,6 @@ class MarketplaceModal(Widget):
         if isinstance(data, MarketplacePlugin):
             self.post_message(self.PluginPreview(data))
 
-    def action_add_marketplace(self) -> None:
-        """Request to add a new marketplace."""
-        self.post_message(self.MarketplaceAddRequest())
-
     def action_cursor_down(self) -> None:
         """Move cursor down in tree."""
         if self._tree:
@@ -757,27 +757,8 @@ class MarketplaceModal(Widget):
             self._tree.focus()
 
     def action_add_marketplace(self) -> None:
-        """Show input for adding a new marketplace."""
-        if self._text_input:
-            self._text_input.show(
-                "Enter marketplace source (URL, path, or GitHub repo)...",
-                context="add_marketplace",
-            )
-
-    def on_text_input_modal_input_submitted(
-        self, message: TextInputModal.InputSubmitted
-    ) -> None:
-        """Handle text input submission."""
-        if message.context == "add_marketplace":
-            self.post_message(self.MarketplaceAdd(message.value))
-
-    def on_text_input_modal_input_cancelled(
-        self,
-        message: TextInputModal.InputCancelled,  # noqa: ARG002
-    ) -> None:
-        """Handle text input cancellation."""
-        if self._tree:
-            self._tree.focus()
+        """Request to add a new marketplace."""
+        self.post_message(self.MarketplaceAddRequest())
 
     @property
     def is_visible(self) -> bool:
