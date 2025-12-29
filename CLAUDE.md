@@ -149,6 +149,7 @@ Modal overlays (hidden by default, dock: bottom):
 | `FilterInput` | `widgets/filter_input.py` | Search input modal |
 | `LevelSelector` | `widgets/level_selector.py` | Target level selector for copy/move |
 | `DeleteConfirm` | `widgets/delete_confirm.py` | Delete confirmation modal |
+| `ErrorModal` | `widgets/error_modal.py` | Persistent error display (Esc to dismiss) |
 | `PluginConfirm` | `widgets/plugin_confirm.py` | Plugin toggle confirmation modal |
 | `MarketplaceModal` | `widgets/marketplace_modal.py` | Marketplace browser overlay |
 | `TextInputModal` | `widgets/text_input_modal.py` | Reusable text input prompt modal |

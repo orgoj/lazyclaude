@@ -8,6 +8,7 @@ from pathlib import Path
 import pyperclip
 from textual.app import App, ComposeResult
 from textual.containers import Container
+from textual.notifications import SeverityLevel
 from textual.theme import Theme
 from textual.widgets import Footer
 
@@ -38,6 +39,7 @@ from lazyclaude.widgets.combined_panel import CombinedPanel
 from lazyclaude.widgets.debug_overlay import DebugOverlay
 from lazyclaude.widgets.delete_confirm import DeleteConfirm
 from lazyclaude.widgets.detail_pane import MainPane
+from lazyclaude.widgets.error_modal import ErrorScreen
 from lazyclaude.widgets.filter_input import FilterInput
 from lazyclaude.widgets.level_selector import LevelSelector
 from lazyclaude.widgets.marketplace_modal import MarketplaceModal
@@ -610,8 +612,25 @@ class LazyClaude(
         self.notify(message, severity="information", timeout=3.0)
 
     def _show_status_error(self, message: str) -> None:
-        """Show error toast notification."""
-        self.notify(message, severity="error", timeout=3.0)
+        """Show persistent error notification."""
+        self.notify(message, severity="error")
+
+    def notify(
+        self,
+        message: str,
+        *,
+        title: str = "",
+        severity: SeverityLevel = "information",
+        timeout: float | None = None,
+        markup: bool = True,
+    ) -> None:
+        """Override notify to route errors to persistent ErrorScreen."""
+        if severity == "error":
+            self.push_screen(ErrorScreen(message))
+        else:
+            super().notify(
+                message, title=title, severity=severity, timeout=timeout, markup=markup
+            )
 
 
 def create_app(
