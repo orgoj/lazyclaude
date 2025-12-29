@@ -1,5 +1,6 @@
 """UI widgets for LazyClaude."""
 
+from lazyclaude.widgets.app_footer import AppFooter
 from lazyclaude.widgets.combined_panel import CombinedPanel
 from lazyclaude.widgets.detail_pane import MainPane
 from lazyclaude.widgets.error_modal import ErrorScreen
@@ -11,6 +12,7 @@ from lazyclaude.widgets.text_input_modal import TextInputModal
 from lazyclaude.widgets.type_panel import TypePanel
 
 __all__ = [
+    "AppFooter",
     "CombinedPanel",
     "ErrorScreen",
     "FilterInput",

@@ -79,7 +79,14 @@ All code MUST comply with these principles (see `docs/constitution.md`):
 | `Enter` | Drill down | Context |
 | `Esc` | Back | Context |
 | `I`/`E`/`D`/`U` | Install/Enable/Disable/Uninstall plugin | Marketplace |
+| `U` | Remove marketplace (on marketplace node) | Marketplace |
 | `A` | Add marketplace | Marketplace |
+| `i` | Toggle installed-only filter | Marketplace |
+| `u` | Update marketplace or plugin | Marketplace |
+| `p` | Preview plugin | Marketplace |
+| `e` | Edit (open plugin folder) | Marketplace |
+| `o` | Open source URL | Marketplace |
+| `L`/`H` | Expand/Collapse all marketplaces | Marketplace |
 
 ## Architecture
 

@@ -7,11 +7,11 @@ import traceback
 from pathlib import Path
 
 import pyperclip
+from textual import work
 from textual.app import App, ComposeResult
 from textual.containers import Container
 from textual.notifications import SeverityLevel
 from textual.theme import Theme
-from textual.widgets import Footer
 
 from lazyclaude import __version__
 from lazyclaude.bindings import APP_BINDINGS
@@ -36,6 +36,7 @@ from lazyclaude.services.filter import FilterService
 from lazyclaude.services.marketplace_loader import MarketplaceLoader
 from lazyclaude.services.settings import SettingsService
 from lazyclaude.themes import CUSTOM_THEMES
+from lazyclaude.widgets.app_footer import AppFooter
 from lazyclaude.widgets.combined_panel import CombinedPanel
 from lazyclaude.widgets.debug_overlay import DebugOverlay
 from lazyclaude.widgets.delete_confirm import DeleteConfirm
@@ -43,7 +44,9 @@ from lazyclaude.widgets.detail_pane import MainPane
 from lazyclaude.widgets.error_modal import ErrorScreen
 from lazyclaude.widgets.filter_input import FilterInput
 from lazyclaude.widgets.level_selector import LevelSelector
+from lazyclaude.widgets.marketplace_confirm import MarketplaceConfirm
 from lazyclaude.widgets.marketplace_modal import MarketplaceModal
+from lazyclaude.widgets.marketplace_source_input import MarketplaceSourceInput
 from lazyclaude.widgets.plugin_confirm import PluginConfirm
 from lazyclaude.widgets.status_panel import StatusPanel
 from lazyclaude.widgets.type_panel import TypePanel
@@ -106,7 +109,10 @@ class LazyClaude(
         self._delete_confirm: DeleteConfirm | None = None
         self._marketplace_modal: MarketplaceModal | None = None
         self._debug_overlay: DebugOverlay | None = None
+        self._marketplace_confirm: MarketplaceConfirm | None = None
+        self._marketplace_source_input: MarketplaceSourceInput | None = None
         self._marketplace_loader: MarketplaceLoader | None = None
+        self._app_footer: AppFooter | None = None
         self._help_visible = False
         self._last_focused_panel: TypePanel | None = None
         self._last_focused_combined: bool = False
@@ -166,11 +172,16 @@ class LazyClaude(
         self._marketplace_modal = MarketplaceModal(id="marketplace-modal")
         yield self._marketplace_modal
 
-        # Debug overlay only created when needed (file logging only, NOT TUI)
-        # self._debug_overlay = DebugOverlay(id="debug-overlay")
-        # yield self._debug_overlay
+        self._marketplace_confirm = MarketplaceConfirm(id="marketplace-confirm")
+        yield self._marketplace_confirm
 
-        yield Footer()
+        self._marketplace_source_input = MarketplaceSourceInput(
+            id="marketplace-source-input"
+        )
+        yield self._marketplace_source_input
+
+        self._app_footer = AppFooter(id="app-footer")
+        yield self._app_footer
 
     def on_mount(self) -> None:
         """Handle mount event - load customizations."""
@@ -208,6 +219,11 @@ class LazyClaude(
         )
         if self._marketplace_modal:
             self._marketplace_modal.set_loader(self._marketplace_loader)
+        if self._marketplace_source_input:
+            self._marketplace_source_input.set_suggestions(
+                self._settings.suggested_marketplaces
+            )
+        self._initialize_suggested_marketplaces()
 
         # Open marketplace if --marketplace flag was passed
         if self._open_marketplace_on_start:
@@ -242,6 +258,11 @@ class LazyClaude(
             self._settings.theme = self.theme
             self._settings_service.save(self._settings)
 
+    @work(thread=True)
+    def _initialize_suggested_marketplaces(self) -> None:
+        """Ensure suggested marketplaces are migrated and persisted in background."""
+        self._settings_service.ensure_suggested_marketplaces(self._settings)
+
     def check_action(
         self,
         action: str,
@@ -250,6 +271,20 @@ class LazyClaude(
         """Control action availability based on current state."""
         if action == "exit_preview":
             return self._plugin_preview_mode
+
+        marketplace_blocked_actions = {
+            "filter_all",
+            "filter_user",
+            "filter_project",
+            "filter_plugin",
+            "toggle_plugin_enabled_filter",
+        }
+        if (
+            self._marketplace_modal
+            and self._marketplace_modal.is_visible
+            and action in marketplace_blocked_actions
+        ):
+            return False
 
         if self._plugin_preview_mode:
             preview_allowed_actions = {
@@ -466,6 +501,11 @@ class LazyClaude(
         self._last_focused_panel = None
         if self._main_pane:
             self._main_pane.customization = None
+        search_active = bool(message.query)
+        if self._status_panel:
+            self._status_panel.search_active = search_active
+        if self._app_footer:
+            self._app_footer.search_active = search_active
         self._update_panels()
         self._update_subtitle()
 
@@ -478,6 +518,10 @@ class LazyClaude(
         self._last_focused_panel = None
         if self._main_pane:
             self._main_pane.customization = None
+        if self._status_panel:
+            self._status_panel.search_active = False
+        if self._app_footer:
+            self._app_footer.search_active = False
         self._update_panels()
         self._update_subtitle()
         self.refresh_bindings()
