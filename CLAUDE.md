@@ -20,7 +20,11 @@ LazyClaude is a TUI application for visualizing Claude Code customizations (Slas
 ```bash
 uv sync                         # Install dependencies
 uv run lazyclaude              # Run application
+uv run lazyclaude --debug      # Run with debug logging to /tmp/lazyclaude.log
 uv run pre-commit install      # Install git hooks for quality gates
+
+# Watch debug log in another terminal:
+tail -f /tmp/lazyclaude.log
 ```
 
 ### Pre-commit Hooks

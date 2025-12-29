@@ -336,29 +336,30 @@ class MarketplaceModal(Widget):
 
     def _render_plugin_label(self, plugin: MarketplacePlugin) -> str:
         """Render a plugin node label."""
-        # Get installed scopes from scope_status
-        installed_scopes = [
-            scope
-            for scope, status in plugin.scope_status.items()
-            if status != "not_installed"
-        ]
+        # Collect scopes by status
+        installed_scopes: list[str] = []
+        enabled_scopes: list[str] = []
+        disabled_scopes: list[str] = []
+
+        for scope in ["user", "project", "local"]:
+            status = plugin.scope_status.get(scope, "not_installed")
+            if status != "not_installed":
+                installed_scopes.append(scope[0])  # u, p, l
+                if status == "enabled":
+                    enabled_scopes.append(scope[0])
+                else:
+                    disabled_scopes.append(scope[0])
 
         if not installed_scopes:
-            # Not installed anywhere
             status_icon = "[ ]"
         else:
-            # Check if enabled in any scope
-            enabled_in_any = any(
-                status == "enabled" for status in plugin.scope_status.values()
-            )
-
-            # Scope letters: u=user, p=project, l=local
-            scope_letters = "".join(
-                [s[0] for s in ["user", "project", "local"] if s in installed_scopes]
-            )
-
-            prefix = "[I" if enabled_in_any else "[D"
-            status_icon = f"{prefix}{scope_letters}]"
+            # Build [I:xx E:xx D:xx] format, skip empty sections
+            parts = [f"I:{''.join(installed_scopes)}"]
+            if enabled_scopes:
+                parts.append(f"E:{''.join(enabled_scopes)}")
+            if disabled_scopes:
+                parts.append(f"D:{''.join(disabled_scopes)}")
+            status_icon = f"[{' '.join(parts)}]"
 
         version_display = ""
         if plugin.is_installed and plugin.installed_version:

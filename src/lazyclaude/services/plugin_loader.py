@@ -1,11 +1,14 @@
 """Plugin loading and registry management."""
 
 import json
+import logging
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
 from lazyclaude.models.customization import PluginInfo, PluginScope
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -50,22 +53,29 @@ class PluginLoader:
 
         v2_file = self.user_config_path / "plugins" / "installed_plugins.json"
         installed = self._load_v2_plugins(v2_file) if v2_file.is_file() else {}
+        logger.debug(
+            f"[PLUGIN] {v2_file} .plugins:\n{json.dumps(list(installed.keys()), indent=2)}"
+        )
 
-        user_enabled = self._load_json_dict(
-            self.user_config_path / "settings.json",
-            "enabledPlugins",
+        user_settings = self.user_config_path / "settings.json"
+        user_enabled = self._load_json_dict(user_settings, "enabledPlugins")
+        logger.debug(
+            f"[PLUGIN] {user_settings} .enabledPlugins:\n{json.dumps(user_enabled, indent=2)}"
         )
 
         project_enabled: dict[str, bool] = {}
         local_enabled: dict[str, bool] = {}
         if self.project_config_path:
-            project_enabled = self._load_json_dict(
-                self.project_config_path / "settings.json",
-                "enabledPlugins",
+            project_settings = self.project_config_path / "settings.json"
+            project_enabled = self._load_json_dict(project_settings, "enabledPlugins")
+            logger.debug(
+                f"[PLUGIN] {project_settings} .enabledPlugins:\n{json.dumps(project_enabled, indent=2)}"
             )
-            local_enabled = self._load_json_dict(
-                self.project_config_path / "settings.local.json",
-                "enabledPlugins",
+
+            local_settings = self.project_config_path / "settings.local.json"
+            local_enabled = self._load_json_dict(local_settings, "enabledPlugins")
+            logger.debug(
+                f"[PLUGIN] {local_settings} .enabledPlugins:\n{json.dumps(local_enabled, indent=2)}"
             )
 
         self._registry = PluginRegistry(

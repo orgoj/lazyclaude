@@ -1,5 +1,7 @@
 """Scope selector bar for plugin install/enable/disable operations."""
 
+import logging
+
 from textual.app import ComposeResult
 from textual.binding import Binding
 from textual.message import Message
@@ -7,6 +9,8 @@ from textual.widget import Widget
 from textual.widgets import Static
 
 from lazyclaude.models.marketplace import MarketplacePlugin
+
+logger = logging.getLogger(__name__)
 
 
 class ScopeSelector(Widget):
@@ -88,22 +92,13 @@ class ScopeSelector(Widget):
         action: str = "enable",
     ) -> None:
         """Show the scope selector and focus it."""
-        import logging
-
-        logger = logging.getLogger(__name__)
-        logger.debug(
-            f"[SCOPE SELECTOR] show() called: plugin={plugin.full_plugin_id}, action={action}"
-        )
-        logger.debug(f"[SCOPE SELECTOR] scope_status: {scope_status}")
-
+        logger.debug(f"[SCOPE SELECTOR] {action} {plugin.full_plugin_id}")
         self._plugin = plugin
         self._scope_status = scope_status
         self._action = action
         self._update_prompt()
         self.add_class("visible")
-        logger.debug("[SCOPE SELECTOR] Added 'visible' class, about to focus")
         self.focus()
-        logger.debug("[SCOPE SELECTOR] Focused")
 
     def hide(self) -> None:
         """Hide the scope selector."""
@@ -140,63 +135,26 @@ class ScopeSelector(Widget):
 
     def action_select_user(self) -> None:
         """Select user scope."""
-        import logging
-
-        logger = logging.getLogger(__name__)
-        logger.debug("[SCOPE SELECTOR] action_select_user called")
         self._select_scope("user")
 
     def action_select_project(self) -> None:
         """Select project scope."""
-        import logging
-
-        logger = logging.getLogger(__name__)
-        logger.debug("[SCOPE SELECTOR] action_select_project called")
         self._select_scope("project")
 
     def action_select_local(self) -> None:
         """Select local scope."""
-        import logging
-
-        logger = logging.getLogger(__name__)
-        logger.debug("[SCOPE SELECTOR] action_select_local called")
         self._select_scope("local")
 
     def _select_scope(self, scope: str) -> None:
         """Handle scope selection."""
-        import logging
+        if not self._plugin:
+            return
 
-        logger = logging.getLogger(__name__)
-
-        try:
-            if not self._plugin:
-                logger.debug("[SCOPE SELECTOR] ERROR: No plugin set!")
-                return
-
-            logger.debug(
-                f"[SCOPE SELECTOR] _select_scope: scope={scope}, action={self._action}, plugin={self._plugin.full_plugin_id}"
-            )
-
-            # Store plugin reference before hiding (hide() sets self._plugin to None)
-            plugin = self._plugin
-            action = self._action
-
-            self.hide()
-            logger.debug("[SCOPE SELECTOR] Hidden, posting ScopeSelected message")
-
-            message = self.ScopeSelected(plugin, scope, action)
-            logger.debug(
-                f"[SCOPE SELECTOR] Message created: plugin={message.plugin.full_plugin_id}, scope={message.scope}, action={message.action}"
-            )
-
-            self.post_message(message)
-            logger.debug("[SCOPE SELECTOR] Message posted successfully")
-        except Exception as e:
-            logger.debug(f"[SCOPE SELECTOR] EXCEPTION: {type(e).__name__}: {e}")
-            import traceback
-
-            logger.debug(f"[SCOPE SELECTOR] Traceback:\n{traceback.format_exc()}")
-            self.app.notify(f"Error in scope selector: {e}", severity="error")  # type: ignore[attr-defined]
+        plugin = self._plugin
+        action = self._action
+        self.hide()
+        logger.debug(f"[SCOPE SELECTOR] -> {action} {plugin.full_plugin_id} @ {scope}")
+        self.post_message(self.ScopeSelected(plugin, scope, action))
 
     def _show_warning(self, message: str) -> None:
         """Show warning message to user."""

@@ -1,6 +1,7 @@
 """Service for loading marketplace data."""
 
 import json
+import logging
 from pathlib import Path
 
 from lazyclaude.models.marketplace import (
@@ -10,6 +11,8 @@ from lazyclaude.models.marketplace import (
     MarketplaceSource,
 )
 from lazyclaude.services.plugin_loader import PluginLoader
+
+logger = logging.getLogger(__name__)
 
 
 class MarketplaceLoader:

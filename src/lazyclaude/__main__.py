@@ -4,7 +4,6 @@ import argparse
 import logging
 import sys
 import traceback
-from datetime import datetime
 from pathlib import Path
 from tempfile import gettempdir
 
@@ -84,9 +83,8 @@ def main() -> None:
     # Setup debug handlers if --debug flag is set
     textual_handler = None
     if args.debug:
-        # Create debug log file with timestamp
-        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        debug_log_path = Path(gettempdir()) / f"lazyclaude_debug_{timestamp}.log"
+        # Create debug log file with fixed path for easy tail -f
+        debug_log_path = Path(gettempdir()) / "lazyclaude.log"
 
         # Add file handler for debug output
         file_handler = logging.FileHandler(debug_log_path, mode="w")
@@ -116,14 +114,17 @@ def main() -> None:
         # Set global logging level to DEBUG AFTER removing stderr handler
         logging.getLogger().setLevel(logging.DEBUG)
 
-        logger.debug(f"LazyClaude debug session started at {timestamp}")
+        logger.debug("LazyClaude debug session started")
         logger.debug(f"Debug log: {debug_log_path}")
+        logger.debug(f"[MAIN] cwd: {Path.cwd()}")
+        logger.debug(f"[MAIN] --directory arg: {args.directory}")
 
     project_config_path = None
     if args.directory:
         project_config_path = args.directory / ".claude"
 
     try:
+        logger.debug(f"[MAIN] project_config_path: {project_config_path}")
         logger.debug("[MAIN] Creating app instance")
         app = create_app(
             user_config_path=args.user_config,

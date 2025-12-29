@@ -1,6 +1,7 @@
 """Service for discovering Claude Code customizations."""
 
 import json
+import logging
 from abc import ABC, abstractmethod
 from pathlib import Path
 
@@ -25,6 +26,8 @@ from lazyclaude.services.parsers.skill import SkillParser
 from lazyclaude.services.parsers.slash_command import SlashCommandParser
 from lazyclaude.services.parsers.subagent import SubagentParser
 from lazyclaude.services.plugin_loader import PluginLoader
+
+logger = logging.getLogger(__name__)
 
 SCAN_CONFIGS = {
     "slash_commands": ScanConfig(
@@ -135,12 +138,18 @@ class ConfigDiscoveryService(IConfigDiscoveryService):
             project_config_path: Override for ./.claude (testing)
         """
         self.user_config_path = user_config_path or Path.home() / ".claude"
+        logger.debug(f"[DISCOVERY] Input project_config_path: {project_config_path}")
+        logger.debug(f"[DISCOVERY] Path.cwd(): {Path.cwd()}")
         self.project_config_path = (
             project_config_path.resolve()
             if project_config_path
             else Path.cwd() / ".claude"
         )
         self.project_root = self.project_config_path.parent
+        logger.debug(
+            f"[DISCOVERY] Final project_config_path: {self.project_config_path}"
+        )
+        logger.debug(f"[DISCOVERY] project_root: {self.project_root}")
 
         self._gitignore_filter = GitignoreFilter(project_root=self.project_root)
         self._scanner = FilesystemScanner(gitignore_filter=self._gitignore_filter)
