@@ -12,6 +12,7 @@ from lazyclaude.models.marketplace import Marketplace, MarketplacePlugin
 from lazyclaude.services.marketplace_loader import MarketplaceLoader
 from lazyclaude.widgets.filter_input import FilterInput
 from lazyclaude.widgets.scope_selector import ScopeSelector
+from lazyclaude.widgets.text_input_modal import TextInputModal
 
 
 class MarketplaceModal(Widget):
@@ -25,6 +26,7 @@ class MarketplaceModal(Widget):
         Binding("E", "enable_plugin", "Enable", show=False),
         Binding("D", "disable_plugin", "Disable", show=False),
         Binding("U", "action_uninstall", "Uninstall", show=False),
+        Binding("A", "add_marketplace", "Add Marketplace", show=False),
         # Existing bindings (keep lowercase e, u)
         Binding("p", "preview_plugin", "Preview", show=False),
         Binding("e", "open_plugin_folder", "Edit", show=False),
@@ -128,6 +130,13 @@ class MarketplaceModal(Widget):
             self.marketplace = marketplace
             super().__init__()
 
+    class MarketplaceAdd(Message):
+        """Emitted when user requests to add a marketplace."""
+
+        def __init__(self, source: str) -> None:
+            self.source = source
+            super().__init__()
+
     class PluginPreview(Message):
         """Emitted when user requests to preview a plugin."""
 
@@ -164,6 +173,7 @@ class MarketplaceModal(Widget):
         self._filter_query: str = ""
         self._filter_input: FilterInput | None = None
         self._scope_selector: ScopeSelector | None = None
+        self._text_input: TextInputModal | None = None
 
     def compose(self) -> ComposeResult:
         tree: Tree[MarketplacePlugin | Marketplace | None] = Tree(
@@ -174,6 +184,8 @@ class MarketplaceModal(Widget):
         yield tree
         self._filter_input = FilterInput(id="marketplace-filter")
         yield self._filter_input
+        self._text_input = TextInputModal(id="marketplace-text-input")
+        yield self._text_input
         yield Static("", id="marketplace-footer")
         self._scope_selector = ScopeSelector()
         yield self._scope_selector
@@ -193,15 +205,15 @@ class MarketplaceModal(Widget):
             footer.update(
                 "[bold]p[/] Preview  [bold]I[/] Install  [bold]E[/] Enable  "
                 "[bold]D[/] Disable  [bold]u[/] Update  [bold]U[/] Uninstall  "
-                "[bold]e[/] Edit  [bold]o[/] Open  [bold]/[/] Search  [bold]Esc[/] Close"
+                "[bold]e[/] Edit  [bold]o[/] Open  [bold]A[/] Add  [bold]/[/] Search  [bold]Esc[/] Close"
             )
         elif isinstance(data, Marketplace):
             footer.update(
                 "[bold]Space[/] Toggle  [bold]u[/] Update  [bold]o[/] Open  "
-                "[bold]/[/] Search  [bold]Esc[/] Close"
+                "[bold]A[/] Add  [bold]/[/] Search  [bold]Esc[/] Close"
             )
         else:
-            footer.update("[bold]/[/] Search  [bold]Esc[/] Close")
+            footer.update("[bold]A[/] Add  [bold]/[/] Search  [bold]Esc[/] Close")
 
     def set_loader(self, loader: MarketplaceLoader) -> None:
         """Set the marketplace loader."""
@@ -609,6 +621,29 @@ class MarketplaceModal(Widget):
     ) -> None:
         """Handle scope selector cancellation."""
         # Just return focus to tree
+        if self._tree:
+            self._tree.focus()
+
+    def action_add_marketplace(self) -> None:
+        """Show input for adding a new marketplace."""
+        if self._text_input:
+            self._text_input.show(
+                "Enter marketplace source (URL, path, or GitHub repo)...",
+                context="add_marketplace",
+            )
+
+    def on_text_input_modal_input_submitted(
+        self, message: TextInputModal.InputSubmitted
+    ) -> None:
+        """Handle text input submission."""
+        if message.context == "add_marketplace":
+            self.post_message(self.MarketplaceAdd(message.value))
+
+    def on_text_input_modal_input_cancelled(
+        self,
+        message: TextInputModal.InputCancelled,  # noqa: ARG002
+    ) -> None:
+        """Handle text input cancellation."""
         if self._tree:
             self._tree.focus()
 

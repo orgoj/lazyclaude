@@ -21,6 +21,7 @@ LazyClaude is a TUI application for visualizing Claude Code customizations (Slas
 uv sync                         # Install dependencies
 uv run lazyclaude              # Run application
 uv run lazyclaude --debug      # Run with debug logging to /tmp/lazyclaude.log
+uv run lazyclaude -m           # Run with marketplace browser open
 uv run pre-commit install      # Install git hooks for quality gates
 
 # Watch debug log in another terminal:
@@ -78,6 +79,7 @@ All code MUST comply with these principles (see `docs/constitution.md`):
 | `Enter` | Drill down | Context |
 | `Esc` | Back | Context |
 | `I`/`E`/`D`/`U` | Install/Enable/Disable/Uninstall plugin | Marketplace |
+| `A` | Add marketplace | Marketplace |
 
 ## Architecture
 
@@ -149,6 +151,7 @@ Modal overlays (hidden by default, dock: bottom):
 | `DeleteConfirm` | `widgets/delete_confirm.py` | Delete confirmation modal |
 | `PluginConfirm` | `widgets/plugin_confirm.py` | Plugin toggle confirmation modal |
 | `MarketplaceModal` | `widgets/marketplace_modal.py` | Marketplace browser overlay |
+| `TextInputModal` | `widgets/text_input_modal.py` | Reusable text input prompt modal |
 
 ### Shared Helpers
 
@@ -188,7 +191,7 @@ SLASH_COMMAND, SUBAGENT, SKILL, MEMORY_FILE, MCP, HOOK
 - Opens with `M` (Shift+m) as full-screen overlay using `layer: overlay`
 - Uses Textual Tree widget: marketplaces as expandable roots, plugins as leaves
 - Status icons: `[green]I[/]` (installed+enabled), `[yellow]D[/]` (disabled), `[ ]` (not installed)
-- Bindings: `I` (install), `E` (enable), `D` (disable), `U` (uninstall), `e` (open folder), `j/k` (nav), `h/l` (collapse/expand)
+- Bindings: `I` (install), `E` (enable), `D` (disable), `U` (uninstall), `A` (add marketplace), `e` (open folder), `j/k` (nav), `h/l` (collapse/expand)
 - Four distinct actions replace old toggle model, each with scope selector
 - Emits messages: `PluginAction`, `PluginUninstall`, `OpenPluginFolder`, `ModalClosed`
 
@@ -209,6 +212,10 @@ Commands run in background workers (`@work(thread=True)`) to keep UI responsive.
 - One-time operations don't need helpers or abstractions
 - Don't add docstrings or comments to code you didn't change
 - Trust internal code and framework guarantees; validate only at system boundaries (user input, external APIs)
+
+**Documentation Updates**
+- Every feature change MUST include documentation updates
+- Update relevant sections in CLAUDE.md (keybindings, widget responsibilities, etc.)
 
 ## Mandatory Testing & Commit Rules
 

@@ -77,6 +77,12 @@ def main() -> None:
         action="store_true",
         help="Enable debug mode (log exceptions to stderr with tracebacks)",
     )
+    parser.add_argument(
+        "-m",
+        "--marketplace",
+        action="store_true",
+        help="Open marketplace browser immediately after start",
+    )
 
     args = parser.parse_args()
 
@@ -129,6 +135,7 @@ def main() -> None:
         app = create_app(
             user_config_path=args.user_config,
             project_config_path=project_config_path,
+            open_marketplace=args.marketplace,
         )
 
         # Store debug flag in app for other modules to access

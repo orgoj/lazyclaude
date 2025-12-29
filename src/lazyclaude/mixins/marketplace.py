@@ -294,6 +294,15 @@ class MarketplaceMixin:
         cmd = ["claude", "plugin", "marketplace", "update", marketplace.entry.name]
         self._run_plugin_command(cmd, f"Updated {marketplace.entry.name}")
 
+    def on_marketplace_modal_marketplace_add(
+        self, message: MarketplaceModal.MarketplaceAdd
+    ) -> None:
+        """Handle marketplace add request."""
+        source = message.source
+        self.notify(f"Adding marketplace from {source}...", severity="information")  # type: ignore[attr-defined]
+        cmd = ["claude", "plugin", "marketplace", "add", source]
+        self._run_plugin_command(cmd, f"Added marketplace from {source}")
+
     def on_marketplace_modal_plugin_update(
         self, message: MarketplaceModal.PluginUpdate
     ) -> None:

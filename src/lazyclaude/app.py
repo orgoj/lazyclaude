@@ -78,6 +78,7 @@ class LazyClaude(
         discovery_service: ConfigDiscoveryService | None = None,
         user_config_path: Path | None = None,
         project_config_path: Path | None = None,
+        open_marketplace: bool = False,
     ) -> None:
         """Initialize LazyClaude application."""
         super().__init__()
@@ -116,6 +117,7 @@ class LazyClaude(
         self._settings_service = SettingsService()
         self._settings = AppSettings()
         self.debug_mode: bool = False
+        self._open_marketplace_on_start: bool = open_marketplace
 
     def _fatal_error(self) -> None:
         """Print simple traceback instead of Rich's fancy one."""
@@ -203,6 +205,11 @@ class LazyClaude(
         )
         if self._marketplace_modal:
             self._marketplace_modal.set_loader(self._marketplace_loader)
+
+        # Open marketplace if --marketplace flag was passed
+        if self._open_marketplace_on_start:
+            logger.debug("[APP] Opening marketplace on start (--marketplace flag)")
+            self.action_toggle_marketplace()
 
     def action_toggle_debug(self) -> None:
         """Toggle debug overlay visibility (only works in debug mode)."""
@@ -610,6 +617,7 @@ class LazyClaude(
 def create_app(
     user_config_path: Path | None = None,
     project_config_path: Path | None = None,
+    open_marketplace: bool = False,
 ) -> LazyClaude:
     """
     Create application with all dependencies wired.
@@ -617,6 +625,7 @@ def create_app(
     Args:
         user_config_path: Override for ~/.claude (testing)
         project_config_path: Override for ./.claude (testing)
+        open_marketplace: Open marketplace browser on startup
 
     Returns:
         Configured LazyClaude application instance.
@@ -625,4 +634,7 @@ def create_app(
         user_config_path=user_config_path,
         project_config_path=project_config_path,
     )
-    return LazyClaude(discovery_service=discovery_service)
+    return LazyClaude(
+        discovery_service=discovery_service,
+        open_marketplace=open_marketplace,
+    )
