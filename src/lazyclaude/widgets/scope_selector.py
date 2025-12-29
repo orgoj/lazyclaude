@@ -20,6 +20,9 @@ class ScopeSelector(Widget):
         Binding("1", "select_user", "User", show=False),
         Binding("2", "select_project", "Project", show=False),
         Binding("3", "select_local", "Local", show=False),
+        Binding("u", "select_user", "User", show=False),
+        Binding("p", "select_project", "Project", show=False),
+        Binding("l", "select_local", "Local", show=False),
         Binding("escape", "cancel", "Cancel", show=False),
     ]
 
@@ -126,7 +129,7 @@ class ScopeSelector(Widget):
         local_icon = get_icon(self._scope_status.get("local", "not_installed"))
 
         options_text = (
-            f"{user_icon} 1:User  {project_icon} 2:Project  {local_icon} 3:Local"
+            f"{user_icon} [1/u] User  {project_icon} [2/p] Project  {local_icon} [3/l] Local"
         )
         prompt_widget = self.query_one("#prompt", Static)
         prompt_widget.update(

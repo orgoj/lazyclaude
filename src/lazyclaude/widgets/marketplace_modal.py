@@ -30,6 +30,7 @@ class MarketplaceModal(Widget):
         Binding("A", "add_marketplace", "Add Marketplace", show=False),
         # Lowercase bindings
         Binding("i", "toggle_installed_filter", "Installed Only", show=False),
+        Binding("n", "toggle_enabled_filter", "Enabled Only", show=False),
         Binding("p", "preview_plugin", "Preview", show=False),
         Binding("e", "open_plugin_folder", "Edit", show=False),
         Binding("o", "open_source", "Open", show=False),
@@ -192,6 +193,7 @@ class MarketplaceModal(Widget):
         self._scope_selector: ScopeSelector | None = None
         self._text_input: TextInputModal | None = None
         self._installed_only_filter: bool = False
+        self._enabled_only_filter: bool = False
         self._auto_collapse: bool = True
         self._collapsed_marketplaces: set[str] = set()  # Track collapsed, default=expanded
 
@@ -223,12 +225,15 @@ class MarketplaceModal(Widget):
         installed_filter = format_keybinding(
             "i", "Installed", active=self._installed_only_filter
         )
+        enabled_filter = format_keybinding(
+            "n", "Enabled", active=self._enabled_only_filter
+        )
         search_filter = format_keybinding(
             "/", "Search", active=bool(self._filter_query)
         )
 
         sep = "[dim]│[/]"
-        nav = f"{installed_filter}  {search_filter}  [bold]L[/] Expand  [bold]H[/] Collapse  [bold]Esc[/] Close"
+        nav = f"{installed_filter}  {enabled_filter}  {search_filter}  [bold]L[/] Expand  [bold]H[/] Collapse  [bold]Esc[/] Close"
 
         if isinstance(data, MarketplacePlugin):
             # Plugin: o Open  e Edit  p Preview │ A Add  I Install  E Enable  D Disable  u Update  U Remove │ nav
@@ -260,6 +265,7 @@ class MarketplaceModal(Widget):
         if not preserve_state:
             logger.debug("[MARKETPLACE MODAL] Loading data and building tree")
             self._installed_only_filter = False
+            self._enabled_only_filter = False
             self._auto_collapse = auto_collapse
             self._marketplace_order = []
             self._collapsed_marketplaces.clear()  # Reset expand state on fresh open
@@ -326,7 +332,7 @@ class MarketplaceModal(Widget):
         filtered = self._get_filtered_marketplaces()
 
         if not filtered:
-            if self._filter_query or self._installed_only_filter:
+            if self._filter_query or self._installed_only_filter or self._enabled_only_filter:
                 self._tree.root.add_leaf("[dim italic]No matches found[/]")
             else:
                 self._tree.root.add_leaf("[dim italic]No marketplaces found[/]")
@@ -350,8 +356,12 @@ class MarketplaceModal(Widget):
                 mp_node.expand()
 
     def _get_filtered_marketplaces(self) -> list[Marketplace]:
-        """Get marketplaces with plugins filtered by query and installed filter."""
-        if not self._filter_query and not self._installed_only_filter:
+        """Get marketplaces with plugins filtered by query, installed and enabled filters."""
+        if (
+            not self._filter_query
+            and not self._installed_only_filter
+            and not self._enabled_only_filter
+        ):
             return self._marketplaces
 
         query = self._filter_query.lower() if self._filter_query else ""
@@ -361,6 +371,7 @@ class MarketplaceModal(Widget):
             if marketplace.error:
                 if (
                     not self._installed_only_filter
+                    and not self._enabled_only_filter
                     and query in marketplace.entry.name.lower()
                 ):
                     filtered.append(marketplace)
@@ -369,6 +380,8 @@ class MarketplaceModal(Widget):
             matching_plugins = []
             for plugin in marketplace.plugins:
                 if self._installed_only_filter and not plugin.is_installed:
+                    continue
+                if self._enabled_only_filter and not (plugin.is_installed and plugin.is_enabled):
                     continue
                 if query and not (
                     query in plugin.name.lower()
@@ -484,6 +497,12 @@ class MarketplaceModal(Widget):
     def action_toggle_installed_filter(self) -> None:
         """Toggle installed-only filter."""
         self._installed_only_filter = not self._installed_only_filter
+        self._build_tree()
+        self._update_footer_for_current_selection()
+
+    def action_toggle_enabled_filter(self) -> None:
+        """Toggle enabled-only filter."""
+        self._enabled_only_filter = not self._enabled_only_filter
         self._build_tree()
         self._update_footer_for_current_selection()
 
