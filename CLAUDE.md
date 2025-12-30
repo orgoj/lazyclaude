@@ -79,9 +79,9 @@ All code MUST comply with these principles (see `docs/constitution.md`):
 | `Enter` | Drill down | Context |
 | `Esc` | Back | Context |
 | `I`/`E`/`D`/`U` | Install/Enable/Disable/Uninstall plugin | Marketplace |
-| `U` | Remove marketplace (on marketplace node) | Marketplace |
 | `A` | Add marketplace | Marketplace |
 | `i` | Toggle installed-only filter | Marketplace |
+| `n` | Toggle enabled-only filter | Marketplace |
 | `u` | Update marketplace or plugin | Marketplace |
 | `p` | Preview plugin | Marketplace |
 | `e` | Edit (open plugin folder) | Marketplace |
@@ -135,18 +135,20 @@ User Input → App (app.py) → TypePanel widgets → SelectionChanged message
 │ │ [4]Mem [5]MCP [6]H │ │ │                                            │ │
 │ └────────────────────┘ │ └────────────────────────────────────────────┘ │
 ├────────────────────────┴────────────────────────────────────────────────┤
-│ Footer                                                                  │
+│ AppFooter (shows mode and context)                                      │
 └─────────────────────────────────────────────────────────────────────────┘
 
 View modes (switched with M key):
 - Normal: Default customization browser view (sidebar + detail pane)
-- Marketplace: Plugin marketplace browser view
+- Marketplace: Plugin marketplace browser view (full-screen tree)
 
 Modal overlays (hidden by default, dock: bottom):
 - FilterInput: Search/filter (activated with /)
 - LevelSelector: Copy/move target selection (activated with c/m)
 - DeleteConfirm: Delete confirmation (activated with d)
-- PluginConfirm: Plugin enable/disable confirmation (activated with t)
+- ScopeSelector: Plugin scope selection (User/Project/Local)
+- MarketplaceConfirm: Marketplace action confirmation
+- MarketplaceSourceInput: Add marketplace source input
 ```
 
 ### Widget Responsibilities
@@ -162,9 +164,11 @@ Modal overlays (hidden by default, dock: bottom):
 | `DeleteConfirm` | `widgets/delete_confirm.py` | Delete confirmation modal |
 | `ErrorModal` | `widgets/error_modal.py` | Persistent error display (Esc to dismiss) |
 | `PluginConfirm` | `widgets/plugin_confirm.py` | Plugin toggle confirmation modal |
-| `MarketplaceView` | `widgets/marketplace_view.py` | Marketplace browser view |
+| `MarketplaceView` | `widgets/marketplace_view.py` | Marketplace browser view (full-screen tree) |
+| `ScopeSelector` | `widgets/scope_selector.py` | Plugin scope selection (User/Project/Local) |
+| `MarketplaceConfirm` | `widgets/marketplace_confirm.py` | Marketplace action confirmation |
+| `MarketplaceSourceInput` | `widgets/marketplace_source_input.py` | Add marketplace source input |
 | `AppFooter` | `widgets/app_footer.py` | Dynamic footer with mode and view-specific content |
-| `TextInputModal` | `widgets/text_input_modal.py` | Reusable text input prompt modal |
 
 ### Shared Helpers
 
@@ -204,22 +208,39 @@ SLASH_COMMAND, SUBAGENT, SKILL, MEMORY_FILE, MCP, HOOK
 - Accessed via view mode cycle (`M` key) - full-screen view replacing normal view
 - Uses Textual Tree widget: marketplaces as expandable roots, plugins as leaves
 - Status icons: `[I:upl E:up D:l]` format showing installed/enabled/disabled scopes (u=user, p=project, l=local)
-- Bindings: `I` (install), `E` (enable), `D` (disable), `U` (uninstall), `A` (add marketplace), `e` (open folder), `j/k` (nav), `h/l` (collapse/expand)
-- Four distinct actions, each with scope selector
-- Emits messages: `PluginAction`, `PluginUninstall`, `OpenPluginFolder`, `ViewClosed`, `FooterChanged`
+- Bindings:
+  - `I` (install), `E` (enable), `D` (disable), `U` (uninstall) - plugin actions with scope selector
+  - `A` (add marketplace source), `u` (update marketplace/plugin)
+  - `i` (toggle installed-only filter), `n` (toggle enabled-only filter)
+  - `p` (preview plugin), `e` (open plugin folder), `o` (open source URL)
+  - `j/k` (nav), `h/l` (collapse/expand), `L/H` (expand/collapse all)
+- Emits messages: `PluginAction`, `PluginUninstall`, `OpenPluginFolder`, `ViewClosed`, `FooterChanged`, `MarketplaceUpdate`, `MarketplaceAdd`, `MarketplaceRemove`
+
+**Scope Selector (`widgets/scope_selector.py`):**
+- Activated when installing, enabling, or disabling plugins
+- Presents User/Project/Local scope options with status icons
+- Key bindings: `1`/`u` (user), `2`/`p` (project), `3`/`l` (local), `Esc` (cancel)
+- Shows current plugin state in each scope with icons: [✓] enabled, [✗] disabled, [ ] not installed
+- Emits `ScopeSelected` message with plugin, scope, and action
 
 **View Mode System (`models/view_mode.py`):**
 - `ViewMode` enum defines available modes: NORMAL, MARKETPLACE
 - `M` key cycles through modes via `action_cycle_mode()`
-- Each view provides footer content via `get_footer_text()` method
-- `AppFooter` displays `[Mode] M Mode | <view content> | ^p Palette`
+- Each view mode switches visibility of entire UI containers
+- `AppFooter` displays current mode and context-specific content
+
+**Plugin Scopes:**
+Plugins can be installed, enabled, or disabled at three scopes:
+- **User** (`~/.claude/`) - Personal installation, available across all projects
+- **Project** (`./.claude/`) - Team-shared installation, version controlled
+- **Local** (`./.claude/local/`) - Local installation, not version controlled
 
 **Plugin Actions (via Claude CLI):**
 ```bash
-claude plugin install <plugin_id>   # Install from marketplace
-claude plugin enable <plugin_id>    # Enable disabled plugin
-claude plugin disable <plugin_id>   # Disable enabled plugin
-claude plugin uninstall <plugin_id> # Remove installed plugin
+claude plugin install <plugin_id> --scope user|project|local  # Install from marketplace
+claude plugin enable <plugin_id> --scope user|project|local   # Enable disabled plugin
+claude plugin disable <plugin_id> --scope user|project|local  # Disable enabled plugin
+claude plugin uninstall <plugin_id>                          # Remove installed plugin
 ```
 
 Commands run in background workers (`@work(thread=True)`) to keep UI responsive.

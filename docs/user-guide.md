@@ -51,7 +51,20 @@ LazyClaude is a terminal user interface (TUI) for managing Claude Code customiza
 ## Getting Started
 
 ```bash
+# Basic usage
 uvx lazyclaude
+
+# Start with marketplace browser open
+uvx lazyclaude --marketplace
+
+# Enable debug mode (logs to /tmp/lazyclaude.log)
+uvx lazyclaude --debug
+
+# Specify project directory
+uvx lazyclaude --directory /path/to/project
+
+# Show version
+uvx lazyclaude --version
 ```
 
 ### First Launch
@@ -240,45 +253,64 @@ User → Copy → Project → Git Commit
 
 **Use Case:** Discover, preview, install, and manage marketplace plugins.
 
+The marketplace is accessed via **view mode** - press `M` to cycle between Normal and Marketplace views. The marketplace view replaces the main interface with a full-screen plugin browser.
+
 #### Browse and Install Plugins
 
 **Steps:**
-1. Press `M` (Shift+m) to open marketplace browser
+1. Press `M` to switch to Marketplace view (or start with `--marketplace` flag)
 2. Navigate with `j`/`k` to browse marketplaces and plugins
 3. Press `l` or `Enter` to expand a marketplace tree
 4. Press `h` to collapse a marketplace tree
 5. Find a plugin you want to install
-6. Press `i` to install (or enable if already installed)
-7. Wait for installation to complete
-8. Press `Esc` to close marketplace
-9. Press `P` to filter to Plugin level and explore
+6. Press `I` (Shift+i) to install
+7. Select the scope for installation:
+   - **User** (`1` or `u`) - Install for current user only
+   - **Project** (`2` or `p`) - Install for current project
+   - **Local** (`3` or `l`) - Install locally (not version controlled)
+8. Wait for installation to complete
+9. Press `Esc` to return to Normal view
+10. Press `P` to filter to Plugin level and explore
 
 ![Marketplace Install Demo](./assets/demo-marketplace-install.gif)
 
 **Marketplace Status Icons:**
-- `[I]` (green) - Installed and enabled
-- `[D]` (yellow) - Installed but disabled
-- `[ ]` - Not installed
+
+Plugins show their installation state across scopes:
+- `[I:upl]` - Installed and enabled in user, project, and/or local scopes
+- `[E:upl]` - Enabled in specific scopes (u=user, p=project, l=local)
+- `[D:upl]` - Disabled in specific scopes
+- Example: `[I:u E:p D:l]` = installed in user, enabled in project, disabled in local
 
 **Marketplace Actions:**
-- `i` - Install plugin (or enable if disabled)
-- `d` - Uninstall plugin
+- `I` (Shift+i) - Install plugin (prompts for scope selection)
+- `E` (Shift+e) - Enable plugin (prompts for scope selection)
+- `D` - Disable plugin (prompts for scope selection)
+- `U` (Shift+u) - Uninstall plugin
+- `i` - Toggle installed-only filter
+- `n` - Toggle enabled-only filter
+- `p` - Preview plugin content
 - `e` - Open plugin folder in file manager
-- `/` - Search within marketplace
+- `o` - Open plugin source URL in browser
+- `u` - Update marketplace or plugin
+- `A` (Shift+a) - Add new marketplace source
+- `L` (Shift+l) - Expand all marketplaces
+- `H` - Collapse all marketplaces
+- `/` - Search/filter within marketplace
 
 #### Preview Plugin Content
 
 **Use Case:** Explore plugin contents before installing to understand what it provides.
 
 **Steps:**
-1. Press `M` to open marketplace browser
+1. Press `M` to switch to Marketplace view
 2. Navigate to a plugin (e.g., `handbook-glab@cc-handbook`)
 3. Press `p` to enter preview mode
-4. Marketplace modal closes automatically
+4. Marketplace view closes automatically
 5. Main panels now show plugin content (read-only)
 6. Use `1-6` to explore different customization types
 7. Press `[` / `]` to view content and metadata
-8. Press `Esc` to exit preview mode and return to normal view
+8. Press `Esc` to exit preview mode and return to Normal view
 
 ![Preview Plugin Demo](./assets/demo-preview-plugin.gif)
 
@@ -297,18 +329,46 @@ User → Copy → Project → Git Commit
 #### Manage Installed Plugins
 
 **Steps:**
-1. Press `M` to open marketplace
-2. Navigate to an installed plugin (marked with `[I]` or `[D]`)
+1. Press `M` to switch to Marketplace view
+2. Navigate to an installed plugin (marked with scope status icons)
 3. Use management actions:
-   - `i` - Toggle enabled/disabled state
-   - `d` - Uninstall plugin
+   - `E` (Shift+e) - Enable plugin at specific scope
+   - `D` - Disable plugin at specific scope
+   - `U` (Shift+u) - Uninstall plugin
    - `e` - Open plugin folder
-4. Press `Esc` to close marketplace
+   - `o` - Open source URL in browser
+   - `u` - Update plugin
+4. Press `Esc` to return to Normal view
 
-**Plugin States:**
-- **Enabled** `[I]` - Active and available in Claude Code
-- **Disabled** `[D]` - Installed but not loaded
-- **Not Installed** `[ ]` - Available in marketplace
+**Plugin States by Scope:**
+
+Each plugin can have different states in different scopes:
+- **User scope** (`~/.claude/`) - Personal installation
+- **Project scope** (`./.claude/`) - Team-shared installation
+- **Local scope** (`./.claude/local/`) - Local-only installation
+
+A plugin can be:
+- **Installed** - Present in one or more scopes
+- **Enabled** - Active and loaded by Claude Code
+- **Disabled** - Present but not loaded
+
+Example: A plugin might be enabled in User scope but disabled in Project scope.
+
+#### Add Marketplace Sources
+
+**Steps:**
+1. Press `M` to switch to Marketplace view
+2. Press `A` (Shift+a) to add marketplace source
+3. Enter marketplace source:
+   - **GitHub**: `github:user/repo` (e.g., `github:anthropics/cclaude-marketplace`)
+   - **Directory**: Absolute path to local marketplace
+4. Press `Enter` to add
+5. Marketplace loads and appears in the tree
+
+**Use Cases:**
+- Add custom marketplace for your organization
+- Test marketplace changes from local clone
+- Access private marketplace repositories
 
 ## Keyboard Reference
 
@@ -365,14 +425,36 @@ User → Copy → Project → Git Commit
 
 ### Marketplace
 
-| Key       | Action           | Description              |
-| --------- | ---------------- | ------------------------ |
-| `M`       | Open Marketplace | Browse plugins           |
-| `i`       | Install/Enable   | Install or enable plugin |
-| `d`       | Uninstall        | Remove plugin            |
-| `e`       | Open Folder      | Open plugin folder       |
-| `p`       | Preview          | Preview plugin content   |
-| `h` / `l` | Collapse/Expand  | Tree navigation          |
+| Key              | Action                  | Description                              |
+| ---------------- | ----------------------- | ---------------------------------------- |
+| `M`              | Cycle View Mode         | Switch between Normal and Marketplace views |
+| `I` (Shift+i)    | Install Plugin          | Install plugin at selected scope         |
+| `E` (Shift+e)    | Enable Plugin           | Enable plugin at selected scope          |
+| `D`              | Disable Plugin          | Disable plugin at selected scope         |
+| `U` (Shift+u)    | Uninstall Plugin        | Remove plugin                            |
+| `A` (Shift+a)    | Add Marketplace         | Add new marketplace source               |
+| `i`              | Toggle Installed Filter | Show only installed plugins              |
+| `n`              | Toggle Enabled Filter   | Show only enabled plugins                |
+| `p`              | Preview Plugin          | Preview plugin content                   |
+| `e`              | Open Folder             | Open plugin folder in file manager       |
+| `o`              | Open Source             | Open plugin source URL in browser        |
+| `u`              | Update                  | Update marketplace or plugin             |
+| `h` / `l`        | Collapse/Expand         | Collapse/Expand marketplace tree          |
+| `H`              | Collapse All            | Collapse all marketplace trees           |
+| `L` (Shift+l)    | Expand All              | Expand all marketplace trees             |
+| `1`/`2`/`3`      | Select Scope            | Select user/project/local scope          |
+| `u`/`p`/`l`      | Select Scope (alt)      | Select user/project/local scope (alt)    |
+
+### Scope Selection
+
+When installing, enabling, or disabling plugins, a scope selector appears:
+
+| Key        | Action       | Description                      |
+| ---------- | ------------ | -------------------------------- |
+| `1` / `u`  | User Scope   | Select user-level installation   |
+| `2` / `p`  | Project Scope| Select project-level installation|
+| `3` / `l`  | Local Scope  | Select local-level installation  |
+| `Esc`      | Cancel       | Cancel scope selection           |
 
 ## Tips and Best Practices
 
@@ -382,23 +464,42 @@ User → Copy → Project → Git Commit
 - Personal preferences and workflows
 - Custom commands for your coding style
 - Experiments and prototypes
+- Plugins you want in all projects
 
 **Project Level** (`./.claude/`)
 - Team-shared commands and skills
 - Project-specific conventions
 - Standardized workflows
 - Version-controlled configurations
+- Plugins needed by the team
 
 **Project Local** (`./.claude/local/`)
 - Local development overrides
 - Temporary experiments
+- Machine-specific configurations
 - Not version controlled
 
 **Plugin Level** (`~/.claude/plugins/`)
 - Install from marketplace
 - Keep originals untouched
 - Copy to user level to customize
-- Check for updates periodically
+- Scope: install per-user, per-project, or locally
+
+### Understanding View Modes
+
+LazyClaude uses a **view mode system** that switches the entire interface:
+
+1. **Normal View** (default)
+   - Shows sidebar with customization panels
+   - Detail pane for selected items
+   - Use for browsing and editing customizations
+
+2. **Marketplace View**
+   - Full-screen plugin browser
+   - Tree of marketplaces and plugins
+   - Use for installing and managing plugins
+
+Press `M` to cycle between view modes. The footer shows the current mode.
 
 ### Efficient Workflows
 
@@ -416,15 +517,45 @@ git add .claude/ && git commit
 
 **Browse and Install:**
 ```
-[M]arketplace → [l]expand → navigate → [i]nstall
+[M] → [l]expand → navigate → [I]nstall → select scope
 [Esc] → [P]lugin → verify
 ```
 
 **Preview Before Install:**
 ```
-[M]arketplace → navigate → [p]review
+[M] → navigate → [p]review
 Explore in panels
-[Esc] → [M] → [i]nstall if satisfied
+[Esc] → [M] → [I]nstall if satisfied
+```
+
+**Install Plugin for Project:**
+```
+[M] → navigate to plugin → [I]nstall → [2/p] for Project scope
+```
+
+**Install Plugin for Personal Use:**
+```
+[M] → navigate to plugin → [I]nstall → [1/u] for User scope
+```
+
+### Debug Mode
+
+Enable debug mode when troubleshooting or reporting issues:
+
+```bash
+uvx lazyclaude --debug
+# Or
+uv run lazyclaude --debug
+```
+
+Debug mode:
+- Logs detailed information to `/tmp/lazyclaude.log`
+- Includes tracebacks for errors
+- Useful for bug reports and troubleshooting
+
+Watch the log in another terminal:
+```bash
+tail -f /tmp/lazyclaude.log
 ```
 
 ### Keyboard Shortcuts Memorization
@@ -435,15 +566,16 @@ Explore in panels
 3. `[`/`]` - View toggling
 4. `e` - Edit (daily use)
 5. `c` - Copy (common operation)
-6. `M` - Marketplace (occasional)
+6. `M` - Cycle view modes (occasional)
 
 **By Category:**
 - **Navigation**: `j`, `k`, `g`, `G`, `Tab`, `0-6`
 - **Viewing**: `[`, `]`, `a`, `u`, `p`, `P`, `D`
 - **Actions**: `e`, `c`, `m`, `C`
 - **Global**: `q`, `?`, `r`, `/`, `Esc`, `M`
+- **Marketplace**: `I`, `E`, `D`, `U`, `A`, `p`
 
 ---
 
 **Version:** 0.11.0
-**Last Updated:** 2025-12-20
+**Last Updated:** 2025-12-30
