@@ -99,6 +99,16 @@ class MarketplaceLoader:
         except (json.JSONDecodeError, OSError) as e:
             return Marketplace(entry=entry, error=str(e))
 
+        # Load marketplace-level metadata
+        # Description: try root level first, then metadata.description
+        entry.description = (
+            data.get("description")
+            or data.get("metadata", {}).get("description")
+            or None
+        )
+        entry.owner = data.get("owner")
+        entry.metadata = data.get("metadata")
+
         plugins: list[MarketplacePlugin] = []
         for plugin_data in data.get("plugins", []):
             plugin = self._parse_plugin(plugin_data, entry.name)
@@ -119,15 +129,45 @@ class MarketplaceLoader:
         is_installed = full_id in (self._installed_plugin_ids or set())
         is_enabled = full_id in (self._enabled_plugin_ids or set())
 
-        source = data.get("source", "")
-        if isinstance(source, dict):
-            source = source.get("url", str(source))
+        source_raw = data.get("source")
+        source = source_raw if isinstance(source_raw, str) else ""
+        if isinstance(source_raw, dict):
+            if source_raw.get("source") == "github":
+                source = f"github:{source_raw.get('repo', '')}"
+            elif source_raw.get("source") == "url":
+                source = source_raw.get("url", str(source_raw))
+            else:
+                source = str(source_raw)
 
         install_path = (self._install_paths or {}).get(full_id)
         installed_version = (self._installed_versions or {}).get(full_id)
 
         # Get scope status
         scope_status = self._get_plugin_scope_status(full_id)
+
+        # Build extra_metadata (everything except known fields)
+        known_fields = {
+            "name",
+            "description",
+            "source",
+            "author",
+            "homepage",
+            "repository",
+            "license",
+            "category",
+            "keywords",
+            "tags",
+            "strict",
+            "commands",
+            "agents",
+            "skills",
+            "subagents",
+            "mcpServers",
+            "lspServers",
+            "hooks",
+            "version",
+        }
+        extra_metadata = {k: v for k, v in data.items() if k not in known_fields}
 
         return MarketplacePlugin(
             name=name,
@@ -139,12 +179,16 @@ class MarketplaceLoader:
             is_enabled=is_enabled if is_installed else True,
             install_path=install_path,
             installed_version=installed_version,
-            extra_metadata={
-                k: v
-                for k, v in data.items()
-                if k not in ("name", "description", "source")
-            },
+            extra_metadata=extra_metadata,
             scope_status=scope_status,
+            # Additional metadata fields
+            author=data.get("author"),
+            source_raw=source_raw,
+            homepage=data.get("homepage"),
+            repository=data.get("repository"),
+            license=data.get("license"),
+            category=data.get("category"),
+            keywords=data.get("keywords"),
         )
 
     def _load_installed_plugins(self) -> None:

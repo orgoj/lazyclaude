@@ -1,5 +1,8 @@
 """Marketplace browser view widget."""
 
+import os
+import shlex
+import subprocess
 from dataclasses import replace
 
 from textual.app import ComposeResult
@@ -12,6 +15,7 @@ from lazyclaude.models.marketplace import Marketplace, MarketplacePlugin
 from lazyclaude.services.marketplace_loader import MarketplaceLoader
 from lazyclaude.widgets.filter_input import FilterInput
 from lazyclaude.widgets.helpers.rendering import format_keybinding
+from lazyclaude.widgets.marketplace_info_panel import MarketplaceInfoPanel
 from lazyclaude.widgets.scope_selector import ScopeSelector
 
 
@@ -54,6 +58,9 @@ class MarketplaceView(Widget):
         border: solid $primary;
         background: $surface;
         padding: 1 2;
+        layout: grid;
+        grid-size: 1 2;
+        grid-rows: 2fr 1fr;
     }
 
     MarketplaceView.visible {
@@ -65,9 +72,15 @@ class MarketplaceView(Widget):
     }
 
     MarketplaceView #marketplace-tree {
-        height: 1fr;
+        height: 100%;
         padding: 0 1;
         scrollbar-gutter: stable;
+        row-span: 1;
+    }
+
+    MarketplaceView MarketplaceInfoPanel {
+        height: 100%;
+        row-span: 2;
     }
 
     MarketplaceView FilterInput {
@@ -99,6 +112,13 @@ class MarketplaceView(Widget):
 
         def __init__(self, plugin: MarketplacePlugin, marketplace: Marketplace) -> None:
             self.plugin = plugin
+            self.marketplace = marketplace
+            super().__init__()
+
+    class OpenMarketplaceFolder(Message):
+        """Emitted when user requests to open marketplace folder."""
+
+        def __init__(self, marketplace: Marketplace) -> None:
             self.marketplace = marketplace
             super().__init__()
 
@@ -177,6 +197,7 @@ class MarketplaceView(Widget):
         self._filter_query: str = ""
         self._filter_input: FilterInput | None = None
         self._scope_selector: ScopeSelector | None = None
+        self._info_panel: MarketplaceInfoPanel | None = None
         self._installed_only_filter: bool = False
         self._enabled_only_filter: bool = False
         self._auto_collapse: bool = True
@@ -192,6 +213,8 @@ class MarketplaceView(Widget):
         tree.show_root = False
         self._tree = tree
         yield tree
+        self._info_panel = MarketplaceInfoPanel()
+        yield self._info_panel
         self._filter_input = FilterInput(id="marketplace-filter")
         yield self._filter_input
         self._scope_selector = ScopeSelector()
@@ -200,8 +223,10 @@ class MarketplaceView(Widget):
     def on_tree_node_highlighted(
         self, event: Tree.NodeHighlighted[MarketplacePlugin | Marketplace | None]
     ) -> None:
-        """Update selection and notify footer change."""
+        """Update selection and info panel."""
         self._selected_data = event.node.data
+        if self._info_panel:
+            self._info_panel.set_data(event.node.data)
         self.post_message(self.FooterChanged())
 
     def get_footer_text(self) -> str:
@@ -224,7 +249,7 @@ class MarketplaceView(Widget):
             actions = "[bold]A[/] Add  [bold]I[/] Install  [bold]E[/] Enable  [bold]D[/] Disable  [bold]u[/] Update  [bold]U[/] Remove"
             return f"{view}  {sep}  {actions}  {sep}  {nav}"
         elif isinstance(self._selected_data, Marketplace):
-            view = "[bold]o[/] Open"
+            view = "[bold]o[/] Open  [bold]e[/] Edit"
             actions = "[bold]A[/] Add  [bold]u[/] Update  [bold]U[/] Remove"
             return f"{view}  {sep}  {actions}  {sep}  {nav}"
         else:
@@ -583,7 +608,7 @@ class MarketplaceView(Widget):
             self._scope_selector.show(data, data.scope_status, action="disable")
 
     def action_open_plugin_folder(self) -> None:
-        """Open the selected plugin's folder."""
+        """Open the selected marketplace or plugin folder."""
         if not self._tree:
             return
 
@@ -592,11 +617,39 @@ class MarketplaceView(Widget):
             return
 
         data = node.data
-        if isinstance(data, MarketplacePlugin):
+        if isinstance(data, Marketplace):
+            # Open marketplace install directory
+            self.post_message(self.OpenMarketplaceFolder(data))
+        elif isinstance(data, MarketplacePlugin):
+            # Open plugin folder
             if data.is_installed:
+                # Installed plugin - open install location
                 self.post_message(self.OpenPluginFolder(data))
+            elif isinstance(data.source_raw, str):
+                # Uninstalled plugin with path source - open in marketplace
+                # Source is already downloaded in marketplace repo
+
+                # Find marketplace for this plugin
+                for marketplace in self._marketplaces:
+                    if marketplace.entry.name == data.marketplace_name:
+                        source_path = (
+                            marketplace.entry.install_location / data.source_raw
+                        )
+                        if source_path.exists():
+                            editor = os.environ.get("EDITOR", "vi")
+                            cmd_str = shlex.join([editor, str(source_path)])
+                            subprocess.Popen(cmd_str, shell=True)
+                            return
+                self.app.notify(
+                    "Plugin source not found in marketplace", severity="error"
+                )
             else:
+                # Uninstalled plugin with remote source (github/url)
                 self.app.notify("Plugin must be installed to edit", severity="warning")
+
+    def action_noop(self) -> None:
+        """No-op action to prevent default behavior."""
+        pass
 
     def action_open_source(self) -> None:
         """Open the selected item's source location."""
@@ -643,10 +696,31 @@ class MarketplaceView(Widget):
         if isinstance(data, MarketplacePlugin):
             if data.is_installed:
                 self.post_message(self.PluginPreview(data))
+            elif isinstance(data.source_raw, str):
+                # Uninstalled plugin with path source - preview from marketplace
+                # Find marketplace for this plugin
+                for marketplace in self._marketplaces:
+                    if marketplace.entry.name == data.marketplace_name:
+                        source_path = (
+                            marketplace.entry.install_location / data.source_raw
+                        )
+                        if source_path.exists():
+                            # Create temporary plugin with install_path for preview
+                            preview_plugin = replace(data, install_path=source_path)
+                            self.post_message(self.PluginPreview(preview_plugin))
+                            return
+                self.app.notify(
+                    "Plugin source not found in marketplace", severity="error"
+                )
             else:
                 self.app.notify(
                     "Plugin must be installed to preview", severity="warning"
                 )
+        elif isinstance(data, Marketplace):
+            self.app.notify(
+                "Preview is only available for plugins, not marketplaces",
+                severity="warning",
+            )
 
     def action_cursor_down(self) -> None:
         """Move cursor down in tree."""

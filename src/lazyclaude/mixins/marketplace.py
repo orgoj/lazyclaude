@@ -243,6 +243,21 @@ class MarketplaceMixin:
         cmd_str = shlex.join([editor, str(plugin.install_path)])
         subprocess.Popen(cmd_str, shell=True)
 
+    def on_marketplace_view_open_marketplace_folder(
+        self, message: MarketplaceView.OpenMarketplaceFolder
+    ) -> None:
+        """Handle opening marketplace install directory."""
+        marketplace = message.marketplace
+        install_path = marketplace.entry.install_location
+
+        if not install_path or not install_path.exists():
+            self.notify("Marketplace folder not found", severity="error")  # type: ignore[attr-defined]
+            return
+
+        editor = os.environ.get("EDITOR", "vi")
+        cmd_str = shlex.join([editor, str(install_path)])
+        subprocess.Popen(cmd_str, shell=True)
+
     def on_marketplace_view_open_plugin_source(
         self, message: MarketplaceView.OpenPluginSource
     ) -> None:

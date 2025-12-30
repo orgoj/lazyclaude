@@ -22,6 +22,9 @@ class MarketplaceEntry:
     source: MarketplaceSource
     install_location: Path
     last_updated: str | None = None
+    description: str | None = None  # From marketplace.json root or metadata
+    owner: dict[str, str] | None = None  # {"name": "...", "email": "...", "url": "..."}
+    metadata: dict[str, Any] | None = None  # {"version": "...", "description": "..."}
 
 
 @dataclass
@@ -41,6 +44,16 @@ class MarketplacePlugin:
     scope_status: dict[str, str] = field(
         default_factory=dict
     )  # {"user": "enabled", ...}
+    # Additional metadata from marketplace.json
+    author: dict[str, str] | None = (
+        None  # {"name": "...", "email": "...", "url": "..."}
+    )
+    source_raw: str | dict[str, Any] | None = None  # Raw source from JSON
+    homepage: str | None = None
+    repository: str | None = None
+    license: str | None = None
+    category: str | None = None
+    keywords: list[str] | None = None
 
 
 @dataclass

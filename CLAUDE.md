@@ -165,6 +165,7 @@ Modal overlays (hidden by default, dock: bottom):
 | `ErrorModal` | `widgets/error_modal.py` | Persistent error display (Esc to dismiss) |
 | `PluginConfirm` | `widgets/plugin_confirm.py` | Plugin toggle confirmation modal |
 | `MarketplaceView` | `widgets/marketplace_view.py` | Marketplace browser view (full-screen tree) with plugin preview (p) and edit (e) for installed plugins |
+| `MarketplaceInfoPanel` | `widgets/marketplace_info_panel.py` | Info panel showing marketplace/plugin metadata with scrollable content (2:1 tree-to-panel ratio) |
 | `ScopeSelector` | `widgets/scope_selector.py` | Plugin scope selection (User/Project/Local) |
 | `MarketplaceConfirm` | `widgets/marketplace_confirm.py` | Marketplace action confirmation |
 | `MarketplaceSourceInput` | `widgets/marketplace_source_input.py` | Add marketplace source input |
@@ -196,8 +197,8 @@ SLASH_COMMAND, SUBAGENT, SKILL, MEMORY_FILE, MCP, HOOK
 
 **Key Models (`models/marketplace.py`):**
 - `MarketplaceSource` - Source type (github/directory), repo, path
-- `MarketplaceEntry` - Marketplace name, source, install_location
-- `MarketplacePlugin` - Plugin metadata including full_plugin_id (`name@marketplace`), install state, install_path
+- `MarketplaceEntry` - Marketplace name, source, install_location, description, owner, metadata
+- `MarketplacePlugin` - Plugin metadata including full_plugin_id (`name@marketplace`), install state, install_path, author, homepage, repository, license, category, keywords
 - `Marketplace` - Entry + list of plugins
 
 **Services:**
@@ -207,14 +208,16 @@ SLASH_COMMAND, SUBAGENT, SKILL, MEMORY_FILE, MCP, HOOK
 **Marketplace View (`widgets/marketplace_view.py`):**
 - Accessed via view mode cycle (`M` key) - full-screen view replacing normal view
 - Uses Textual Tree widget: marketplaces as expandable roots, plugins as leaves
+- Info panel below tree (2:1 ratio) showing marketplace/plugin metadata from marketplace.json
 - Status icons: `[I:upl E:up D:l]` format showing installed/enabled/disabled scopes (u=user, p=project, l=local)
 - Bindings:
   - `I` (install), `E` (enable), `D` (disable), `U` (uninstall) - plugin actions with scope selector
   - `A` (add marketplace source), `u` (update marketplace/plugin)
   - `i` (toggle installed-only filter), `n` (toggle enabled-only filter)
-  - `p` (preview plugin), `e` (open plugin folder), `o` (open source URL)
+  - `p` (preview plugin), `e` (open plugin/marketplace folder in editor), `o` (open source URL)
   - `j/k` (nav), `h/l` (collapse/expand), `L/H` (expand/collapse all)
-- Emits messages: `PluginAction`, `PluginUninstall`, `OpenPluginFolder`, `ViewClosed`, `FooterChanged`, `MarketplaceUpdate`, `MarketplaceAdd`, `MarketplaceRemove`
+- Emits messages: `PluginAction`, `PluginUninstall`, `OpenPluginFolder`, `OpenMarketplaceFolder`, `ViewClosed`, `FooterChanged`, `MarketplaceUpdate`, `MarketplaceAdd`, `MarketplaceRemove`
+- `e` key on marketplace opens install directory in $EDITOR
 
 **Plugin Preview Mode:**
 - Activated by pressing `p` on an **installed** plugin in marketplace view

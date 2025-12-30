@@ -17,11 +17,12 @@
         "hooks": [
           {
             "type": "command",
-            "command": "bash .claude/hooks/quality-gates.sh --lint --format --mypy",
+            "command": "bash $CLAUDE_PROJECT_DIR/.claude/hooks/quality-gates.sh --lint --format --mypy",
             "timeout": 120
           }
         ]
       }
     ]
-  }
+  },
+  "enabledPlugins": {}
 }

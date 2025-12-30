@@ -439,7 +439,7 @@ Example: A plugin might be enabled in User scope but disabled in Project scope.
 | `i`              | Toggle Installed Filter | Show only installed plugins              |
 | `n`              | Toggle Enabled Filter   | Show only enabled plugins                |
 | `p`              | Preview Plugin          | Preview installed plugin content         |
-| `e`              | Open Folder             | Open installed plugin folder             |
+| `e`              | Open Folder             | Open installed plugin folder / marketplace directory |
 | `o`              | Open Source             | Open plugin source URL in browser        |
 | `u`              | Update                  | Update marketplace or plugin             |
 | `h` / `l`        | Collapse/Expand         | Collapse/Expand marketplace tree          |
@@ -498,9 +498,13 @@ LazyClaude uses a **view mode system** that switches the entire interface:
    - Use for browsing and editing customizations
 
 2. **Marketplace View**
-   - Full-screen plugin browser
-   - Tree of marketplaces and plugins
+   - Full-screen plugin browser with info panel
+   - Tree of marketplaces and plugins (66% height)
+   - Info panel showing metadata below tree (33% height, scrollable)
+   - Displays marketplace owner, version, description
+   - Displays plugin author, homepage, repository, license, category, keywords
    - Use for installing and managing plugins
+   - `e` on marketplace opens install directory in editor
 
 Press `M` to cycle between view modes. The footer shows the current mode.
 
