@@ -27,12 +27,12 @@ Press `a`/`u`/`p`/`P` to filter customizations by configuration level (All/User/
 ![Filter Workflow](docs/assets/demo-filter-workflow.gif)
 
 ### Browse Marketplace
-Press `M` to open the marketplace browser. Install plugins with `i`, preview content with `p`, and manage installations.
+Press `M` to open the marketplace browser. Install plugins with `i`, preview installed plugins with `p`, and manage installations.
 
 ![Marketplace Install](docs/assets/demo-marketplace-install.gif)
 
-### Preview Before Installing
-Press `p` in the marketplace to preview plugin content before installation. Explore what the plugin provides without committing.
+### Preview Installed Plugins
+Press `p` in the marketplace on an installed plugin to explore its customizations (commands, skills, subagents). Main pane shows README, sidebar displays plugin contents. Press `Esc` to return to marketplace.
 
 ![Preview Plugin](docs/assets/demo-preview-plugin.gif)
 

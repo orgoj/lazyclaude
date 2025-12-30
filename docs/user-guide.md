@@ -45,7 +45,7 @@ LazyClaude is a terminal user interface (TUI) for managing Claude Code customiza
 - Multi-level configuration management (user, project, plugin)
 - Copy and move configurations between levels
 - Marketplace browser for discovering and installing plugins
-- Preview plugin content before installation
+- Preview installed plugin content to understand customizations
 - Keyboard-driven workflow inspired by lazygit
 
 ## Getting Started
@@ -251,7 +251,7 @@ User → Copy → Project → Git Commit
 
 ### 4. Working with Marketplace
 
-**Use Case:** Discover, preview, install, and manage marketplace plugins.
+**Use Case:** Discover, install, preview, and manage marketplace plugins.
 
 The marketplace is accessed via **view mode** - press `M` to cycle between Normal and Marketplace views. The marketplace view replaces the main interface with a full-screen plugin browser.
 
@@ -289,8 +289,8 @@ Plugins show their installation state across scopes:
 - `U` (Shift+u) - Uninstall plugin
 - `i` - Toggle installed-only filter
 - `n` - Toggle enabled-only filter
-- `p` - Preview plugin content
-- `e` - Open plugin folder in file manager
+- `p` - Preview installed plugin content
+- `e` - Open installed plugin folder in file manager
 - `o` - Open plugin source URL in browser
 - `u` - Update marketplace or plugin
 - `A` (Shift+a) - Add new marketplace source
@@ -300,17 +300,20 @@ Plugins show their installation state across scopes:
 
 #### Preview Plugin Content
 
-**Use Case:** Explore plugin contents before installing to understand what it provides.
+**Use Case:** Explore an installed plugin's contents to understand what customizations it provides (commands, skills, subagents, MCPs, hooks, memory files).
 
 **Steps:**
 1. Press `M` to switch to Marketplace view
-2. Navigate to a plugin (e.g., `handbook-glab@cc-handbook`)
+2. Navigate to an **installed** plugin (e.g., `handbook-glab@cc-handbook`)
 3. Press `p` to enter preview mode
-4. Marketplace view closes automatically
-5. Main panels now show plugin content (read-only)
-6. Use `1-6` to explore different customization types
-7. Press `[` / `]` to view content and metadata
-8. Press `Esc` to exit preview mode and return to Normal view
+4. App switches to NORMAL view mode and displays plugin customizations in sidebar panels
+5. Main pane shows plugin's README.md (if available)
+6. Status panel displays "Preview: PluginName (version)"
+7. Use `1-6` to explore different customization types
+8. Press `[` / `]` to view content and metadata
+9. Press `Esc` to exit preview mode and return to Marketplace view
+
+**Note:** Preview only works on installed plugins. If you press `p` on an uninstalled plugin, you'll see a warning message.
 
 ![Preview Plugin Demo](./assets/demo-preview-plugin.gif)
 
@@ -335,7 +338,7 @@ Plugins show their installation state across scopes:
    - `E` (Shift+e) - Enable plugin at specific scope
    - `D` - Disable plugin at specific scope
    - `U` (Shift+u) - Uninstall plugin
-   - `e` - Open plugin folder
+   - `e` - Open installed plugin folder
    - `o` - Open source URL in browser
    - `u` - Update plugin
 4. Press `Esc` to return to Normal view
@@ -435,8 +438,8 @@ Example: A plugin might be enabled in User scope but disabled in Project scope.
 | `A` (Shift+a)    | Add Marketplace         | Add new marketplace source               |
 | `i`              | Toggle Installed Filter | Show only installed plugins              |
 | `n`              | Toggle Enabled Filter   | Show only enabled plugins                |
-| `p`              | Preview Plugin          | Preview plugin content                   |
-| `e`              | Open Folder             | Open plugin folder in file manager       |
+| `p`              | Preview Plugin          | Preview installed plugin content         |
+| `e`              | Open Folder             | Open installed plugin folder             |
 | `o`              | Open Source             | Open plugin source URL in browser        |
 | `u`              | Update                  | Update marketplace or plugin             |
 | `h` / `l`        | Collapse/Expand         | Collapse/Expand marketplace tree          |
@@ -521,11 +524,11 @@ git add .claude/ && git commit
 [Esc] → [P]lugin → verify
 ```
 
-**Preview Before Install:**
+**Preview Installed Plugin:**
 ```
-[M] → navigate → [p]review
-Explore in panels
-[Esc] → [M] → [I]nstall if satisfied
+[M] → navigate to installed plugin → [p]review
+Explore in panels (commands, skills, etc.)
+[Esc] → return to marketplace
 ```
 
 **Install Plugin for Project:**

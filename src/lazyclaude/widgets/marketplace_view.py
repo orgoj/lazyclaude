@@ -596,7 +596,7 @@ class MarketplaceView(Widget):
             if data.is_installed:
                 self.post_message(self.OpenPluginFolder(data))
             else:
-                self.app.notify("Plugin is not installed", severity="error")
+                self.app.notify("Plugin must be installed to edit", severity="warning")
 
     def action_open_source(self) -> None:
         """Open the selected item's source location."""
@@ -641,7 +641,12 @@ class MarketplaceView(Widget):
 
         data = node.data
         if isinstance(data, MarketplacePlugin):
-            self.post_message(self.PluginPreview(data))
+            if data.is_installed:
+                self.post_message(self.PluginPreview(data))
+            else:
+                self.app.notify(
+                    "Plugin must be installed to preview", severity="warning"
+                )
 
     def action_cursor_down(self) -> None:
         """Move cursor down in tree."""

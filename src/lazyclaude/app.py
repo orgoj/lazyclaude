@@ -266,6 +266,10 @@ class LazyClaude(
 
     def action_cycle_mode(self) -> None:
         """Cycle through view modes with M key."""
+        if self._plugin_preview_mode:
+            self._exit_plugin_preview()  # Returns to MARKETPLACE
+            return
+
         modes = list(ViewMode)
         current_idx = modes.index(self._view_mode)
         next_idx = (current_idx + 1) % len(modes)

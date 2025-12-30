@@ -83,8 +83,8 @@ All code MUST comply with these principles (see `docs/constitution.md`):
 | `i` | Toggle installed-only filter | Marketplace |
 | `n` | Toggle enabled-only filter | Marketplace |
 | `u` | Update marketplace or plugin | Marketplace |
-| `p` | Preview plugin | Marketplace |
-| `e` | Edit (open plugin folder) | Marketplace |
+| `p` | Preview plugin (installed only) | Marketplace |
+| `e` | Edit - open plugin folder (installed only) | Marketplace |
 | `o` | Open source URL | Marketplace |
 | `L`/`H` | Expand/Collapse all marketplaces | Marketplace |
 
@@ -164,7 +164,7 @@ Modal overlays (hidden by default, dock: bottom):
 | `DeleteConfirm` | `widgets/delete_confirm.py` | Delete confirmation modal |
 | `ErrorModal` | `widgets/error_modal.py` | Persistent error display (Esc to dismiss) |
 | `PluginConfirm` | `widgets/plugin_confirm.py` | Plugin toggle confirmation modal |
-| `MarketplaceView` | `widgets/marketplace_view.py` | Marketplace browser view (full-screen tree) |
+| `MarketplaceView` | `widgets/marketplace_view.py` | Marketplace browser view (full-screen tree) with plugin preview (p) and edit (e) for installed plugins |
 | `ScopeSelector` | `widgets/scope_selector.py` | Plugin scope selection (User/Project/Local) |
 | `MarketplaceConfirm` | `widgets/marketplace_confirm.py` | Marketplace action confirmation |
 | `MarketplaceSourceInput` | `widgets/marketplace_source_input.py` | Add marketplace source input |
@@ -215,6 +215,18 @@ SLASH_COMMAND, SUBAGENT, SKILL, MEMORY_FILE, MCP, HOOK
   - `p` (preview plugin), `e` (open plugin folder), `o` (open source URL)
   - `j/k` (nav), `h/l` (collapse/expand), `L/H` (expand/collapse all)
 - Emits messages: `PluginAction`, `PluginUninstall`, `OpenPluginFolder`, `ViewClosed`, `FooterChanged`, `MarketplaceUpdate`, `MarketplaceAdd`, `MarketplaceRemove`
+
+**Plugin Preview Mode:**
+- Activated by pressing `p` on an **installed** plugin in marketplace view
+- Switches app to NORMAL view mode via `_switch_mode(ViewMode.NORMAL)`
+- Shows plugin's customizations in sidebar panels (commands, skills, subagents, etc.)
+- Status panel displays "Preview: PluginName (version)"
+- Main pane shows plugin's README.md if available
+- Footer switches to normal mode bindings
+- **Esc key** exits preview and returns to marketplace view
+- **M key** during preview exits preview (doesn't cycle modes)
+- Only works on installed plugins (shows warning otherwise)
+- Preview state tracked by `_plugin_preview_mode` boolean flag (not a separate ViewMode)
 
 **Scope Selector (`widgets/scope_selector.py`):**
 - Activated when installing, enabling, or disabling plugins

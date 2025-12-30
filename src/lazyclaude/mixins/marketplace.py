@@ -7,6 +7,7 @@ import subprocess
 from typing import TYPE_CHECKING
 
 from textual import work
+from textual.containers import Container
 
 from lazyclaude.models.customization import (
     ConfigLevel,
@@ -15,6 +16,7 @@ from lazyclaude.models.customization import (
     PluginInfo,
 )
 from lazyclaude.models.marketplace import MarketplacePlugin
+from lazyclaude.models.view_mode import ViewMode
 from lazyclaude.services.opener import open_github_source, open_in_file_explorer
 from lazyclaude.widgets.marketplace_confirm import MarketplaceConfirm
 from lazyclaude.widgets.marketplace_source_input import MarketplaceSourceInput
@@ -97,8 +99,11 @@ class MarketplaceMixin:
         self._previewing_plugin = plugin
         self._plugin_preview_mode = True
 
-        if self._marketplace_view:
-            self._marketplace_view.hide(preserve_state=True)
+        self._switch_mode(ViewMode.NORMAL)  # type: ignore[attr-defined]
+
+        # Focus first panel to activate panel bindings (0-7, Tab)
+        if self._panels:  # type: ignore[attr-defined]
+            self._panels[0].focus()  # type: ignore[attr-defined]
 
         self._update_panels()  # type: ignore[attr-defined]
         self._update_subtitle()  # type: ignore[attr-defined]
@@ -152,7 +157,12 @@ class MarketplaceMixin:
         if self._main_pane:
             self._main_pane.customization = None
 
+        # Switch to MARKETPLACE view and preserve marketplace state (filters, cursor position)
+        self._view_mode = ViewMode.MARKETPLACE  # type: ignore[attr-defined]
+        normal_view = self.query_one("#normal-view", Container)  # type: ignore[attr-defined]
+        normal_view.remove_class("visible")  # type: ignore[attr-defined]
         if self._marketplace_view:
+            self._marketplace_view.add_class("visible")
             self._marketplace_view.show(preserve_state=True)
 
     def action_exit_preview(self) -> None:
