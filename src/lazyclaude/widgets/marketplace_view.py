@@ -507,14 +507,29 @@ class MarketplaceView(Widget):
     def action_toggle_installed_filter(self) -> None:
         """Toggle installed-only filter."""
         self._installed_only_filter = not self._installed_only_filter
-        self._build_tree()
-        self._update_footer_for_current_selection()
+        self._rebuild_tree_preserving_cursor()
 
     def action_toggle_enabled_filter(self) -> None:
         """Toggle enabled-only filter."""
         self._enabled_only_filter = not self._enabled_only_filter
+        self._rebuild_tree_preserving_cursor()
+
+    def _rebuild_tree_preserving_cursor(self) -> None:
+        """Rebuild tree while preserving cursor position by ID."""
+        selected_id: str | None = None
+        if self._tree and self._tree.cursor_node:
+            data = self._tree.cursor_node.data
+            if isinstance(data, MarketplacePlugin):
+                selected_id = data.full_plugin_id
+            elif isinstance(data, Marketplace):
+                selected_id = f"marketplace:{data.entry.name}"
+
         self._build_tree()
-        self._update_footer_for_current_selection()
+
+        if selected_id and self._tree:
+            self._tree.call_after_refresh(self._restore_cursor, selected_id)
+        else:
+            self._update_footer_for_current_selection()
 
     def _update_footer_for_current_selection(self) -> None:
         """Update footer based on current tree selection."""
@@ -527,8 +542,7 @@ class MarketplaceView(Widget):
     def on_filter_input_filter_changed(self, event: FilterInput.FilterChanged) -> None:
         """Handle real-time filter changes."""
         self._filter_query = event.query
-        self._build_tree()
-        self._update_footer_for_current_selection()
+        self._rebuild_tree_preserving_cursor()
 
     def on_filter_input_filter_cancelled(
         self,
@@ -536,8 +550,7 @@ class MarketplaceView(Widget):
     ) -> None:
         """Handle filter cancellation."""
         self._filter_query = ""
-        self._build_tree()
-        self._update_footer_for_current_selection()
+        self._rebuild_tree_preserving_cursor()
         if self._tree:
             self._tree.focus()
 

@@ -126,8 +126,6 @@ class MarketplaceLoader:
             return None
 
         full_id = f"{name}@{marketplace_name}"
-        is_installed = full_id in (self._installed_plugin_ids or set())
-        is_enabled = full_id in (self._enabled_plugin_ids or set())
 
         source_raw = data.get("source")
         source = source_raw if isinstance(source_raw, str) else ""
@@ -142,8 +140,16 @@ class MarketplaceLoader:
         install_path = (self._install_paths or {}).get(full_id)
         installed_version = (self._installed_versions or {}).get(full_id)
 
-        # Get scope status
+        # Get scope status - this correctly filters by current project
         scope_status = self._get_plugin_scope_status(full_id)
+
+        # Derive is_installed and is_enabled from scope_status
+        # Plugin is installed if it's installed in any scope for the current project
+        is_installed = any(
+            status != "not_installed" for status in scope_status.values()
+        )
+        # Plugin is enabled if it's enabled in any scope for the current project
+        is_enabled = any(status == "enabled" for status in scope_status.values())
 
         # Build extra_metadata (everything except known fields)
         known_fields = {
