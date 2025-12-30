@@ -21,7 +21,7 @@ class LazyClaude(
 |-------|---------|-------------|
 | `NavigationMixin` | Panel focus, view switching | `action_focus_panel_*`, `action_prev/next_view`, `action_back` |
 | `FilterMixin` | Level filters, search | `action_filter_*`, `action_search`, `_update_status_filter` |
-| `MarketplaceMixin` | Plugin browser, preview mode | `action_toggle_marketplace`, `on_marketplace_modal_*` |
+| `MarketplaceMixin` | Plugin browser, preview mode | `action_toggle_marketplace`, `on_marketplace_view_*` |
 | `CustomizationActionsMixin` | CRUD operations | `action_copy/move/delete_customization`, `on_*_confirm_*` |
 | `HelpMixin` | Help overlay toggle | `action_toggle_help`, `_show_help`, `_hide_help` |
 

@@ -15,6 +15,7 @@ from lazyclaude.models.marketplace import (
     MarketplacePlugin,
     MarketplaceSource,
 )
+from lazyclaude.models.view_mode import ViewMode
 
 __all__ = [
     "ConfigLevel",
@@ -28,4 +29,5 @@ __all__ = [
     "SkillMetadata",
     "SlashCommandMetadata",
     "SubagentMetadata",
+    "ViewMode",
 ]

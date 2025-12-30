@@ -30,6 +30,7 @@ from lazyclaude.models.customization import (
 )
 from lazyclaude.models.marketplace import MarketplacePlugin
 from lazyclaude.models.settings import AppSettings
+from lazyclaude.models.view_mode import ViewMode
 from lazyclaude.services.config_path_resolver import ConfigPathResolver
 from lazyclaude.services.discovery import ConfigDiscoveryService
 from lazyclaude.services.filter import FilterService
@@ -45,8 +46,8 @@ from lazyclaude.widgets.error_modal import ErrorScreen
 from lazyclaude.widgets.filter_input import FilterInput
 from lazyclaude.widgets.level_selector import LevelSelector
 from lazyclaude.widgets.marketplace_confirm import MarketplaceConfirm
-from lazyclaude.widgets.marketplace_modal import MarketplaceModal
 from lazyclaude.widgets.marketplace_source_input import MarketplaceSourceInput
+from lazyclaude.widgets.marketplace_view import MarketplaceView
 from lazyclaude.widgets.plugin_confirm import PluginConfirm
 from lazyclaude.widgets.status_panel import StatusPanel
 from lazyclaude.widgets.type_panel import TypePanel
@@ -107,8 +108,9 @@ class LazyClaude(
         self._level_selector: LevelSelector | None = None
         self._plugin_confirm: PluginConfirm | None = None
         self._delete_confirm: DeleteConfirm | None = None
-        self._marketplace_modal: MarketplaceModal | None = None
+        self._marketplace_view: MarketplaceView | None = None
         self._debug_overlay: DebugOverlay | None = None
+        self._view_mode: ViewMode = ViewMode.NORMAL
         self._marketplace_confirm: MarketplaceConfirm | None = None
         self._marketplace_source_input: MarketplaceSourceInput | None = None
         self._marketplace_loader: MarketplaceLoader | None = None
@@ -136,27 +138,34 @@ class LazyClaude(
 
     def compose(self) -> ComposeResult:
         """Compose the application layout."""
-        with Container(id="sidebar"):
-            self._status_panel = StatusPanel(id="status-panel")
-            yield self._status_panel
+        # Normal view (sidebar + main pane)
+        with Container(id="normal-view", classes="view visible"):
+            with Container(id="sidebar"):
+                self._status_panel = StatusPanel(id="status-panel")
+                yield self._status_panel
 
-            separate_types = [
-                CustomizationType.SLASH_COMMAND,
-                CustomizationType.SUBAGENT,
-                CustomizationType.SKILL,
-            ]
-            for i, ctype in enumerate(separate_types, start=1):
-                panel = TypePanel(ctype, id=f"panel-{ctype.name.lower()}")
-                panel.panel_number = i
-                self._panels.append(panel)
-                yield panel
+                separate_types = [
+                    CustomizationType.SLASH_COMMAND,
+                    CustomizationType.SUBAGENT,
+                    CustomizationType.SKILL,
+                ]
+                for i, ctype in enumerate(separate_types, start=1):
+                    panel = TypePanel(ctype, id=f"panel-{ctype.name.lower()}")
+                    panel.panel_number = i
+                    self._panels.append(panel)
+                    yield panel
 
-            self._combined_panel = CombinedPanel(id="panel-combined")
-            yield self._combined_panel
+                self._combined_panel = CombinedPanel(id="panel-combined")
+                yield self._combined_panel
 
-        self._main_pane = MainPane(id="main-pane")
-        yield self._main_pane
+            self._main_pane = MainPane(id="main-pane")
+            yield self._main_pane
 
+        # Marketplace view
+        self._marketplace_view = MarketplaceView(id="marketplace-view", classes="view")
+        yield self._marketplace_view
+
+        # Global overlays (work in any view mode)
         self._filter_input = FilterInput(id="filter-input")
         yield self._filter_input
 
@@ -169,9 +178,6 @@ class LazyClaude(
         self._delete_confirm = DeleteConfirm(id="delete-confirm")
         yield self._delete_confirm
 
-        self._marketplace_modal = MarketplaceModal(id="marketplace-modal")
-        yield self._marketplace_modal
-
         self._marketplace_confirm = MarketplaceConfirm(id="marketplace-confirm")
         yield self._marketplace_confirm
 
@@ -180,6 +186,7 @@ class LazyClaude(
         )
         yield self._marketplace_source_input
 
+        # Shared footer
         self._app_footer = AppFooter(id="app-footer")
         yield self._app_footer
 
@@ -217,18 +224,21 @@ class LazyClaude(
             user_config_path=self._discovery_service.user_config_path,
             plugin_loader=self._discovery_service._plugin_loader,
         )
-        if self._marketplace_modal:
-            self._marketplace_modal.set_loader(self._marketplace_loader)
+        if self._marketplace_view:
+            self._marketplace_view.set_loader(self._marketplace_loader)
         if self._marketplace_source_input:
             self._marketplace_source_input.set_suggestions(
                 self._settings.suggested_marketplaces
             )
         self._initialize_suggested_marketplaces()
 
+        # Initialize footer with current mode
+        self._update_footer()
+
         # Open marketplace if --marketplace flag was passed
         if self._open_marketplace_on_start:
             logger.debug("[APP] Opening marketplace on start (--marketplace flag)")
-            self.action_toggle_marketplace()
+            self._switch_mode(ViewMode.MARKETPLACE)
 
     def action_toggle_debug(self) -> None:
         """Toggle debug overlay visibility (only works in debug mode)."""
@@ -252,6 +262,98 @@ class LazyClaude(
         else:
             logger.warning("[DEBUG OVERLAY] No debug overlay found!")
 
+    # View mode switching
+
+    def action_cycle_mode(self) -> None:
+        """Cycle through view modes with M key."""
+        modes = list(ViewMode)
+        current_idx = modes.index(self._view_mode)
+        next_idx = (current_idx + 1) % len(modes)
+        self._switch_mode(modes[next_idx])
+
+    def action_toggle_marketplace(self) -> None:
+        """Toggle marketplace view (legacy, calls cycle_mode)."""
+        if self._view_mode == ViewMode.MARKETPLACE:
+            self._switch_mode(ViewMode.NORMAL)
+        else:
+            self._switch_mode(ViewMode.MARKETPLACE)
+
+    def _switch_mode(self, mode: ViewMode) -> None:
+        """Switch to a different view mode."""
+        import logging
+
+        logger = logging.getLogger(__name__)
+        logger.debug(f"[MODE] Switching from {self._view_mode} to {mode}")
+
+        # Hide all views
+        normal_view = self.query_one("#normal-view", Container)
+        normal_view.remove_class("visible")
+        if self._marketplace_view:
+            self._marketplace_view.remove_class("visible")
+
+        # Show the target view
+        if mode == ViewMode.NORMAL:
+            normal_view.add_class("visible")
+            self._restore_focus_after_selector()
+        elif mode == ViewMode.MARKETPLACE:
+            if self._marketplace_view:
+                self._panel_before_selector = self._get_focused_panel()
+                self._combined_before_selector = (
+                    self._combined_panel.has_focus if self._combined_panel else False
+                )
+                self._marketplace_view.add_class("visible")
+                self._marketplace_view.show(
+                    auto_collapse=self._settings.marketplace_auto_collapse
+                )
+
+        self._view_mode = mode
+        self._update_footer()
+
+    def _update_footer(self) -> None:
+        """Update footer based on current mode."""
+        if not self._app_footer:
+            return
+
+        if self._view_mode == ViewMode.NORMAL:
+            content = self._get_normal_footer_text()
+        elif self._view_mode == ViewMode.MARKETPLACE:
+            if self._marketplace_view:
+                content = self._marketplace_view.get_footer_text()
+            else:
+                content = ""
+        else:
+            content = ""
+
+        self._app_footer.set_content(self._view_mode, content)
+
+    def _get_normal_footer_text(self) -> str:
+        """Get footer text for normal view."""
+        from lazyclaude.widgets.helpers.rendering import format_keybinding
+
+        level = "All"
+        if self._level_filter == ConfigLevel.USER:
+            level = "User"
+        elif self._level_filter == ConfigLevel.PROJECT:
+            level = "Project"
+        elif self._level_filter == ConfigLevel.PLUGIN:
+            level = "Plugin"
+
+        all_key = format_keybinding("a", "All", active=level == "All")
+        user_key = format_keybinding("u", "User", active=level == "User")
+        project_key = format_keybinding("p", "Project", active=level == "Project")
+        plugin_key = format_keybinding("P", "Plugin", active=level == "Plugin")
+        disabled_key = format_keybinding(
+            "D", "Disabled", active=self._plugin_enabled_filter is None
+        )
+        search_key = format_keybinding("/", "Search", active=bool(self._search_query))
+
+        return (
+            f"[bold]q[/] Quit  [bold]?[/] Help  [bold]r[/] Refresh  "
+            f"[bold]e[/] Edit  [bold]c[/] Copy  [bold]m[/] Move  [bold]d[/] Delete  "
+            f"{all_key}  {user_key}  {project_key}  {plugin_key}  "
+            f"{disabled_key}  {search_key}"
+        )
+
     def _on_theme_changed(self, theme: Theme) -> None:  # noqa: ARG002
         """Persist theme when changed via theme picker."""
         if self._settings.theme != self.theme:
@@ -272,18 +374,28 @@ class LazyClaude(
         if action == "exit_preview":
             return self._plugin_preview_mode
 
-        marketplace_blocked_actions = {
+        # Actions only available in NORMAL view mode
+        # (panel focus keys 0-7, Tab are defined in panel widgets, not App)
+        normal_mode_only_actions = {
+            # Filters
             "filter_all",
             "filter_user",
             "filter_project",
             "filter_plugin",
             "toggle_plugin_enabled_filter",
+            # Customization operations
+            "open_in_editor",
+            "copy_customization",
+            "move_customization",
+            "delete_customization",
+            "copy_config_path",
+            "toggle_plugin_enabled",
+            "open_user_config",
+            # View switching (MainPane content/metadata)
+            "prev_view",
+            "next_view",
         }
-        if (
-            self._marketplace_modal
-            and self._marketplace_modal.is_visible
-            and action in marketplace_blocked_actions
-        ):
+        if self._view_mode != ViewMode.NORMAL and action in normal_mode_only_actions:
             return False
 
         if self._plugin_preview_mode:
@@ -504,10 +616,9 @@ class LazyClaude(
         search_active = bool(message.query)
         if self._status_panel:
             self._status_panel.search_active = search_active
-        if self._app_footer:
-            self._app_footer.search_active = search_active
         self._update_panels()
         self._update_subtitle()
+        self._update_footer()
 
     def on_filter_input_filter_cancelled(
         self,
@@ -520,10 +631,9 @@ class LazyClaude(
             self._main_pane.customization = None
         if self._status_panel:
             self._status_panel.search_active = False
-        if self._app_footer:
-            self._app_footer.search_active = False
         self._update_panels()
         self._update_subtitle()
+        self._update_footer()
         self.refresh_bindings()
 
     def on_filter_input_filter_applied(
@@ -542,9 +652,14 @@ class LazyClaude(
         self.exit()
 
     def action_refresh(self) -> None:
-        """Refresh customizations from disk."""
-        self._customizations = self._discovery_service.refresh()
-        self._update_panels()
+        """Refresh based on current view mode."""
+        if self._view_mode == ViewMode.NORMAL:
+            self._customizations = self._discovery_service.refresh()
+            self._update_panels()
+        elif self._view_mode == ViewMode.MARKETPLACE:
+            if self._marketplace_view:
+                self._marketplace_view.refresh_tree()
+                self.notify("Marketplace refreshed")
 
     def action_open_in_editor(self) -> None:
         """Open the selected customization file in $EDITOR."""

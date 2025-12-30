@@ -17,8 +17,8 @@ from lazyclaude.models.customization import (
 from lazyclaude.models.marketplace import MarketplacePlugin
 from lazyclaude.services.opener import open_github_source, open_in_file_explorer
 from lazyclaude.widgets.marketplace_confirm import MarketplaceConfirm
-from lazyclaude.widgets.marketplace_modal import MarketplaceModal
 from lazyclaude.widgets.marketplace_source_input import MarketplaceSourceInput
+from lazyclaude.widgets.marketplace_view import MarketplaceView
 
 logger = logging.getLogger(__name__)
 
@@ -37,7 +37,7 @@ if TYPE_CHECKING:
 class MarketplaceMixin:
     """Mixin providing marketplace browser functionality."""
 
-    _marketplace_modal: MarketplaceModal | None
+    _marketplace_view: MarketplaceView | None
     _marketplace_confirm: MarketplaceConfirm | None
     _marketplace_source_input: MarketplaceSourceInput | None
     _marketplace_loader: "MarketplaceLoader | None"
@@ -55,20 +55,12 @@ class MarketplaceMixin:
     _combined_before_selector: bool
     _settings: "AppSettings"
 
-    def action_toggle_marketplace(self) -> None:
-        """Toggle the marketplace browser modal."""
-        if self._marketplace_modal:
-            if self._marketplace_modal.is_visible:
-                self._marketplace_modal.hide()
-                self._restore_focus_after_selector()  # type: ignore[attr-defined]
-            else:
-                self._panel_before_selector = self._get_focused_panel()  # type: ignore[attr-defined]
-                self._combined_before_selector = (
-                    self._combined_panel.has_focus if self._combined_panel else False
-                )
-                self._marketplace_modal.show(
-                    auto_collapse=self._settings.marketplace_auto_collapse
-                )
+    def on_marketplace_view_footer_changed(
+        self,
+        message: MarketplaceView.FooterChanged,  # noqa: ARG002
+    ) -> None:
+        """Handle footer change from marketplace view."""
+        self._update_footer()  # type: ignore[attr-defined]
 
     def _enter_plugin_preview(self, plugin: MarketplacePlugin) -> None:
         """Enter plugin preview mode - show plugin's customizations in panels."""
@@ -105,8 +97,8 @@ class MarketplaceMixin:
         self._previewing_plugin = plugin
         self._plugin_preview_mode = True
 
-        if self._marketplace_modal:
-            self._marketplace_modal.hide(preserve_state=True)
+        if self._marketplace_view:
+            self._marketplace_view.hide(preserve_state=True)
 
         self._update_panels()  # type: ignore[attr-defined]
         self._update_subtitle()  # type: ignore[attr-defined]
@@ -160,15 +152,15 @@ class MarketplaceMixin:
         if self._main_pane:
             self._main_pane.customization = None
 
-        if self._marketplace_modal:
-            self._marketplace_modal.show(preserve_state=True)
+        if self._marketplace_view:
+            self._marketplace_view.show(preserve_state=True)
 
     def action_exit_preview(self) -> None:
         """Exit plugin preview mode (visible binding for Esc in preview)."""
         self._exit_plugin_preview()
 
-    def on_marketplace_modal_plugin_preview(
-        self, message: MarketplaceModal.PluginPreview
+    def on_marketplace_view_plugin_preview(
+        self, message: MarketplaceView.PluginPreview
     ) -> None:
         """Handle plugin preview request from marketplace modal."""
         self._enter_plugin_preview(message.plugin)
@@ -206,8 +198,8 @@ class MarketplaceMixin:
     def _on_plugin_command_success(self, success_msg: str) -> None:
         """Handle successful plugin command completion."""
         self.notify(success_msg, severity="information")  # type: ignore[attr-defined]
-        if self._marketplace_modal:
-            self._marketplace_modal.refresh_tree()
+        if self._marketplace_view:
+            self._marketplace_view.refresh_tree()
         self.action_refresh()  # type: ignore[attr-defined]
 
     def _on_plugin_command_error(self, error_msg: str) -> None:
@@ -224,11 +216,11 @@ class MarketplaceMixin:
         else:
             self.notify(error_msg, severity="error")  # type: ignore[attr-defined]
 
-        if self._marketplace_modal:
-            self._marketplace_modal.refresh_tree()
+        if self._marketplace_view:
+            self._marketplace_view.refresh_tree()
 
-    def on_marketplace_modal_open_plugin_folder(
-        self, message: MarketplaceModal.OpenPluginFolder
+    def on_marketplace_view_open_plugin_folder(
+        self, message: MarketplaceView.OpenPluginFolder
     ) -> None:
         """Handle opening plugin folder from marketplace modal."""
         plugin = message.plugin
@@ -241,8 +233,8 @@ class MarketplaceMixin:
         cmd_str = shlex.join([editor, str(plugin.install_path)])
         subprocess.Popen(cmd_str, shell=True)
 
-    def on_marketplace_modal_open_plugin_source(
-        self, message: MarketplaceModal.OpenPluginSource
+    def on_marketplace_view_open_plugin_source(
+        self, message: MarketplaceView.OpenPluginSource
     ) -> None:
         """Handle opening plugin source location from marketplace modal."""
         plugin = message.plugin
@@ -274,8 +266,8 @@ class MarketplaceMixin:
         else:
             self.notify(f"Unknown source type: {source_type}", severity="warning")  # type: ignore[attr-defined]
 
-    def on_marketplace_modal_open_marketplace_source(
-        self, message: MarketplaceModal.OpenMarketplaceSource
+    def on_marketplace_view_open_marketplace_source(
+        self, message: MarketplaceView.OpenMarketplaceSource
     ) -> None:
         """Handle opening marketplace source location."""
         marketplace = message.marketplace
@@ -294,8 +286,8 @@ class MarketplaceMixin:
         else:
             self.notify(f"Unknown source type: {source_type}", severity="warning")  # type: ignore[attr-defined]
 
-    def on_marketplace_modal_marketplace_update(
-        self, message: MarketplaceModal.MarketplaceUpdate
+    def on_marketplace_view_marketplace_update(
+        self, message: MarketplaceView.MarketplaceUpdate
     ) -> None:
         """Handle marketplace update request."""
         marketplace = message.marketplace
@@ -303,8 +295,8 @@ class MarketplaceMixin:
         cmd = ["claude", "plugin", "marketplace", "update", marketplace.entry.name]
         self._run_plugin_command(cmd, f"Updated {marketplace.entry.name}")
 
-    def on_marketplace_modal_marketplace_add(
-        self, message: MarketplaceModal.MarketplaceAdd
+    def on_marketplace_view_marketplace_add(
+        self, message: MarketplaceView.MarketplaceAdd
     ) -> None:
         """Handle marketplace add request."""
         source = message.source
@@ -312,8 +304,8 @@ class MarketplaceMixin:
         cmd = ["claude", "plugin", "marketplace", "add", source]
         self._run_plugin_command(cmd, f"Added marketplace from {source}")
 
-    def on_marketplace_modal_plugin_update(
-        self, message: MarketplaceModal.PluginUpdate
+    def on_marketplace_view_plugin_update(
+        self, message: MarketplaceView.PluginUpdate
     ) -> None:
         """Handle plugin update request."""
         plugin = message.plugin
@@ -321,15 +313,8 @@ class MarketplaceMixin:
         cmd = ["claude", "plugin", "update", plugin.full_plugin_id]
         self._run_plugin_command(cmd, f"Updated {plugin.name}")
 
-    def on_marketplace_modal_modal_closed(
-        self,
-        message: MarketplaceModal.ModalClosed,  # noqa: ARG002
-    ) -> None:
-        """Handle marketplace modal close."""
-        self._restore_focus_after_selector()  # type: ignore[attr-defined]
-
-    def on_marketplace_modal_scope_selected(
-        self, message: MarketplaceModal.ScopeSelected
+    def on_marketplace_view_scope_selected(
+        self, message: MarketplaceView.ScopeSelected
     ) -> None:
         """Handle scope selection for plugin action."""
         plugin = message.plugin
@@ -420,16 +405,16 @@ class MarketplaceMixin:
 
         return status
 
-    def on_marketplace_modal_marketplace_remove(
-        self, message: MarketplaceModal.MarketplaceRemove
+    def on_marketplace_view_marketplace_remove(
+        self, message: MarketplaceView.MarketplaceRemove
     ) -> None:
         """Handle marketplace remove request - show confirmation."""
         if self._marketplace_confirm:
             self._marketplace_confirm.show(message.marketplace)
 
-    def on_marketplace_modal_marketplace_add_request(
+    def on_marketplace_view_marketplace_add_request(
         self,
-        message: MarketplaceModal.MarketplaceAddRequest,  # noqa: ARG002
+        message: MarketplaceView.MarketplaceAddRequest,  # noqa: ARG002
     ) -> None:
         """Handle request to add marketplace - show source input."""
         if self._marketplace_source_input:
@@ -443,9 +428,9 @@ class MarketplaceMixin:
         self.notify(f"Removing {marketplace.entry.name}...", severity="information")  # type: ignore[attr-defined]
         cmd = ["claude", "plugin", "marketplace", "remove", marketplace.entry.name]
         self._run_plugin_command(cmd, f"Removed {marketplace.entry.name}")
-        if self._marketplace_modal:
-            self._marketplace_modal.call_after_refresh(  # type: ignore[attr-defined]
-                self._marketplace_modal.focus_tree
+        if self._marketplace_view:
+            self._marketplace_view.call_after_refresh(  # type: ignore[attr-defined]
+                self._marketplace_view.focus_tree
             )
 
     def on_marketplace_confirm_remove_cancelled(
@@ -453,9 +438,9 @@ class MarketplaceMixin:
         message: MarketplaceConfirm.RemoveCancelled,  # noqa: ARG002
     ) -> None:
         """Handle marketplace removal cancellation."""
-        if self._marketplace_modal:
-            self._marketplace_modal.call_after_refresh(  # type: ignore[attr-defined]
-                self._marketplace_modal.focus_tree
+        if self._marketplace_view:
+            self._marketplace_view.call_after_refresh(  # type: ignore[attr-defined]
+                self._marketplace_view.focus_tree
             )
 
     def on_marketplace_source_input_source_submitted(
@@ -466,13 +451,13 @@ class MarketplaceMixin:
         self.notify(f"Adding marketplace from {source}...", severity="information")  # type: ignore[attr-defined]
         cmd = ["claude", "plugin", "marketplace", "add", source]
         self._run_plugin_command(cmd, "Added marketplace")
-        if self._marketplace_modal:
-            self._marketplace_modal.focus_tree()
+        if self._marketplace_view:
+            self._marketplace_view.focus_tree()
 
     def on_marketplace_source_input_source_cancelled(
         self,
         message: MarketplaceSourceInput.SourceCancelled,  # noqa: ARG002
     ) -> None:
         """Handle marketplace source input cancellation."""
-        if self._marketplace_modal:
-            self._marketplace_modal.focus_tree()
+        if self._marketplace_view:
+            self._marketplace_view.focus_tree()

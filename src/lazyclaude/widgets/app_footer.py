@@ -1,15 +1,16 @@
-"""Custom application footer with dynamic filter highlighting."""
+"""Custom application footer with dynamic mode-based content."""
 
 from textual.app import ComposeResult
+from textual.css.query import NoMatches
 from textual.reactive import reactive
 from textual.widget import Widget
 from textual.widgets import Static
 
-from lazyclaude.widgets.helpers.rendering import format_keybinding
+from lazyclaude.models.view_mode import ViewMode
 
 
 class AppFooter(Widget):
-    """Footer widget that highlights active filters."""
+    """Footer widget that displays mode and view-specific content."""
 
     DEFAULT_CSS = """
     AppFooter {
@@ -24,53 +25,41 @@ class AppFooter(Widget):
     }
     """
 
-    filter_level: reactive[str] = reactive("All")
-    search_active: reactive[bool] = reactive(False)
-    disabled_filter_active: reactive[bool] = reactive(False)
+    mode: reactive[ViewMode] = reactive(ViewMode.NORMAL)
+    content_text: reactive[str] = reactive("")
 
     def compose(self) -> ComposeResult:
-        yield Static(self._get_footer_text(), classes="footer-content")
+        yield Static(self._render_footer(), classes="footer-content")
 
-    def _get_footer_text(self) -> str:
-        """Render footer with highlighted active filters."""
-        all_key = format_keybinding("a", "All", active=self.filter_level == "All")
-        user_key = format_keybinding("u", "User", active=self.filter_level == "User")
-        project_key = format_keybinding(
-            "p", "Project", active=self.filter_level == "Project"
-        )
-        plugin_key = format_keybinding(
-            "P", "Plugin", active=self.filter_level == "Plugin"
-        )
-        disabled_key = format_keybinding(
-            "D", "Disabled", active=self.disabled_filter_active
-        )
-        search_key = format_keybinding("/", "Search", active=self.search_active)
+    def _render_footer(self) -> str:
+        """Render footer with mode label and content."""
+        mode_label = f"[bold][{self.mode.value.title()}][/]"
+        mode_key = "[bold]M[/] Mode"
+        palette = "[bold][$accent]^p[/][/] Palette"
 
-        return (
-            f"[bold]q[/] Quit  [bold]?[/] Help  [bold]r[/] Refresh  "
-            f"[bold]e[/] Edit  [bold]c[/] Copy  [bold]m[/] Move  [bold]d[/] Delete  "
-            f"{all_key}  {user_key}  {project_key}  {plugin_key}  "
-            f"{disabled_key}  {search_key}  [bold]M[/] Marketplace  "
-            f"│  [bold][$accent]^p[/][/] Palette"
-        )
+        if self.content_text:
+            return f"{mode_label}  {mode_key}  [dim]|[/]  {self.content_text}  [dim]|[/]  {palette}"
+        else:
+            return f"{mode_label}  {mode_key}  [dim]|[/]  {palette}"
+
+    def set_content(self, mode: ViewMode, content: str) -> None:
+        """Update footer with new mode and content."""
+        self.mode = mode
+        self.content_text = content
 
     def _update_content(self) -> None:
         """Update the footer content display."""
         if self.is_mounted:
             try:
                 content = self.query_one(".footer-content", Static)
-                content.update(self._get_footer_text())
-            except Exception:
-                pass
+                content.update(self._render_footer())
+            except NoMatches:
+                pass  # Widget not yet composed
 
-    def watch_filter_level(self, level: str) -> None:  # noqa: ARG002
-        """React to filter level changes."""
+    def watch_mode(self, mode: ViewMode) -> None:  # noqa: ARG002
+        """React to mode changes."""
         self._update_content()
 
-    def watch_search_active(self, active: bool) -> None:  # noqa: ARG002
-        """React to search active changes."""
-        self._update_content()
-
-    def watch_disabled_filter_active(self, active: bool) -> None:  # noqa: ARG002
-        """React to disabled filter changes."""
+    def watch_content_text(self, content: str) -> None:  # noqa: ARG002
+        """React to content changes."""
         self._update_content()

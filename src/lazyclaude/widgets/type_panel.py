@@ -16,6 +16,7 @@ from textual.widgets import Static
 if TYPE_CHECKING:
     from lazyclaude.app import LazyClaude
 
+from lazyclaude.bindings import PANEL_FOCUS_BINDINGS
 from lazyclaude.models.customization import (
     Customization,
     CustomizationType,
@@ -29,8 +30,7 @@ class TypePanel(Widget):
     """Panel displaying customizations of a single type."""
 
     BINDINGS = [
-        Binding("tab", "focus_next_panel", "Next Panel", show=False),
-        Binding("shift+tab", "focus_previous_panel", "Prev Panel", show=False),
+        *PANEL_FOCUS_BINDINGS,
         Binding("j", "cursor_down", "Down", show=False),
         Binding("k", "cursor_up", "Up", show=False),
         Binding("down", "cursor_down", "Down", show=False),

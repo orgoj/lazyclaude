@@ -21,7 +21,7 @@ LazyClaude is a TUI application for visualizing Claude Code customizations (Slas
 uv sync                         # Install dependencies
 uv run lazyclaude              # Run application
 uv run lazyclaude --debug      # Run with debug logging to /tmp/lazyclaude.log
-uv run lazyclaude -m           # Run with marketplace browser open
+uv run lazyclaude -m           # Run starting in marketplace view mode
 uv run pre-commit install      # Install git hooks for quality gates
 
 # Watch debug log in another terminal:
@@ -67,7 +67,7 @@ All code MUST comply with these principles (see `docs/constitution.md`):
 | `m` | Move to level | Global |
 | `C` | Copy path to clipboard | Global |
 | `Ctrl+u` | Open user config (~/.claude, ~/.claude.json) | Global |
-| `M` | Open marketplace browser | Global |
+| `M` | Cycle view mode (Normal → Marketplace → ...) | Global |
 | `a`/`u`/`p`/`P` | Filter: All/User/Project/Plugin | Global |
 | `D` | Toggle disabled plugins | Global |
 | `[`/`]` | Switch content/metadata view | Global |
@@ -138,6 +138,10 @@ User Input → App (app.py) → TypePanel widgets → SelectionChanged message
 │ Footer                                                                  │
 └─────────────────────────────────────────────────────────────────────────┘
 
+View modes (switched with M key):
+- Normal: Default customization browser view (sidebar + detail pane)
+- Marketplace: Plugin marketplace browser view
+
 Modal overlays (hidden by default, dock: bottom):
 - FilterInput: Search/filter (activated with /)
 - LevelSelector: Copy/move target selection (activated with c/m)
@@ -158,7 +162,8 @@ Modal overlays (hidden by default, dock: bottom):
 | `DeleteConfirm` | `widgets/delete_confirm.py` | Delete confirmation modal |
 | `ErrorModal` | `widgets/error_modal.py` | Persistent error display (Esc to dismiss) |
 | `PluginConfirm` | `widgets/plugin_confirm.py` | Plugin toggle confirmation modal |
-| `MarketplaceModal` | `widgets/marketplace_modal.py` | Marketplace browser overlay |
+| `MarketplaceView` | `widgets/marketplace_view.py` | Marketplace browser view |
+| `AppFooter` | `widgets/app_footer.py` | Dynamic footer with mode and view-specific content |
 | `TextInputModal` | `widgets/text_input_modal.py` | Reusable text input prompt modal |
 
 ### Shared Helpers
@@ -195,13 +200,19 @@ SLASH_COMMAND, SUBAGENT, SKILL, MEMORY_FILE, MCP, HOOK
 - `MarketplaceLoader` (`services/marketplace_loader.py`) - Loads marketplaces and determines plugin install/enabled state from PluginLoader registry
 - `PluginLoader` (`services/plugin_loader.py`) - Manages installed_plugins.json registry, resolves install paths
 
-**Marketplace Modal (`widgets/marketplace_modal.py`):**
-- Opens with `M` (Shift+m) as full-screen overlay using `layer: overlay`
+**Marketplace View (`widgets/marketplace_view.py`):**
+- Accessed via view mode cycle (`M` key) - full-screen view replacing normal view
 - Uses Textual Tree widget: marketplaces as expandable roots, plugins as leaves
-- Status icons: `[green]I[/]` (installed+enabled), `[yellow]D[/]` (disabled), `[ ]` (not installed)
+- Status icons: `[I:upl E:up D:l]` format showing installed/enabled/disabled scopes (u=user, p=project, l=local)
 - Bindings: `I` (install), `E` (enable), `D` (disable), `U` (uninstall), `A` (add marketplace), `e` (open folder), `j/k` (nav), `h/l` (collapse/expand)
-- Four distinct actions replace old toggle model, each with scope selector
-- Emits messages: `PluginAction`, `PluginUninstall`, `OpenPluginFolder`, `ModalClosed`
+- Four distinct actions, each with scope selector
+- Emits messages: `PluginAction`, `PluginUninstall`, `OpenPluginFolder`, `ViewClosed`, `FooterChanged`
+
+**View Mode System (`models/view_mode.py`):**
+- `ViewMode` enum defines available modes: NORMAL, MARKETPLACE
+- `M` key cycles through modes via `action_cycle_mode()`
+- Each view provides footer content via `get_footer_text()` method
+- `AppFooter` displays `[Mode] M Mode | <view content> | ^p Palette`
 
 **Plugin Actions (via Claude CLI):**
 ```bash

@@ -2,6 +2,20 @@
 
 from textual.binding import Binding, BindingType
 
+# Panel focus bindings - used by normal view widgets (TypePanel, CombinedPanel, MainPane)
+PANEL_FOCUS_BINDINGS: list[BindingType] = [
+    Binding("tab", "focus_next_panel", "Next Panel", show=False),
+    Binding("shift+tab", "focus_previous_panel", "Prev Panel", show=False),
+    Binding("0", "focus_main_pane", "Panel 0", show=False),
+    Binding("1", "focus_panel_1", "Panel 1", show=False),
+    Binding("2", "focus_panel_2", "Panel 2", show=False),
+    Binding("3", "focus_panel_3", "Panel 3", show=False),
+    Binding("4", "focus_panel_4", "Panel 4", show=False),
+    Binding("5", "focus_panel_5", "Panel 5", show=False),
+    Binding("6", "focus_panel_6", "Panel 6", show=False),
+    Binding("7", "focus_panel_7", "Panel 7", show=False),
+]
+
 APP_BINDINGS: list[BindingType] = [
     Binding("q", "quit", "Quit"),
     Binding("?", "toggle_help", "Help"),
@@ -11,8 +25,6 @@ APP_BINDINGS: list[BindingType] = [
     Binding("m", "move_customization", "Move"),
     Binding("d", "delete_customization", "Delete"),
     Binding("C", "copy_config_path", "Copy Path"),
-    Binding("tab", "focus_next_panel", "Next Panel", show=False),
-    Binding("shift+tab", "focus_previous_panel", "Prev Panel", show=False),
     Binding("a", "filter_all", "All"),
     Binding("u", "filter_user", "User"),
     Binding("p", "filter_project", "Project"),
@@ -22,16 +34,8 @@ APP_BINDINGS: list[BindingType] = [
     Binding("/", "search", "Search"),
     Binding("[", "prev_view", "[", show=True),
     Binding("]", "next_view", "]", show=True),
-    Binding("0", "focus_main_pane", "Panel 0", show=False),
-    Binding("1", "focus_panel_1", "Panel 1", show=False),
-    Binding("2", "focus_panel_2", "Panel 2", show=False),
-    Binding("3", "focus_panel_3", "Panel 3", show=False),
-    Binding("4", "focus_panel_4", "Panel 4", show=False),
-    Binding("5", "focus_panel_5", "Panel 5", show=False),
-    Binding("6", "focus_panel_6", "Panel 6", show=False),
-    Binding("7", "focus_panel_7", "Panel 7", show=False),
     Binding("ctrl+u", "open_user_config", "User Config", show=False),
-    Binding("M", "toggle_marketplace", "Marketplace", show=True, priority=True),
+    Binding("M", "cycle_mode", "Mode", show=True, priority=True),
     Binding("escape", "exit_preview", "Exit Preview", show=True, priority=True),
     Binding("escape", "back", "Back", show=False),
 ]

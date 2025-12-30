@@ -8,6 +8,30 @@ Screen {
     background: $surface;
 }
 
+/* View containers */
+.view {
+    display: none;
+    column-span: 2;
+}
+
+.view.visible {
+    display: block;
+    column-span: 2;
+}
+
+#normal-view {
+    layout: grid;
+    grid-size: 2;
+    grid-columns: 1fr 2fr;
+    width: 100%;
+    height: 100%;
+}
+
+#marketplace-view {
+    width: 100%;
+    height: 100%;
+}
+
 #sidebar {
     layout: vertical;
     height: 100%;

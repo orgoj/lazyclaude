@@ -1,4 +1,4 @@
-"""Marketplace browser modal widget."""
+"""Marketplace browser view widget."""
 
 from dataclasses import replace
 
@@ -6,7 +6,7 @@ from textual.app import ComposeResult
 from textual.binding import Binding
 from textual.message import Message
 from textual.widget import Widget
-from textual.widgets import Static, Tree
+from textual.widgets import Tree
 
 from lazyclaude.models.marketplace import Marketplace, MarketplacePlugin
 from lazyclaude.services.marketplace_loader import MarketplaceLoader
@@ -15,11 +15,11 @@ from lazyclaude.widgets.helpers.rendering import format_keybinding
 from lazyclaude.widgets.scope_selector import ScopeSelector
 
 
-class MarketplaceModal(Widget):
-    """Modal for browsing marketplaces and their plugins."""
+class MarketplaceView(Widget):
+    """View for browsing marketplaces and their plugins."""
 
     BINDINGS = [
-        Binding("escape", "close_or_cancel", "Close", show=False),
+        Binding("escape", "cancel_filter", "Cancel", show=False),
         Binding("/", "search", "Search", show=False),
         # Shift+key bindings for plugin actions
         Binding("I", "install_plugin", "Install", show=False),
@@ -47,45 +47,32 @@ class MarketplaceModal(Widget):
     ]
 
     DEFAULT_CSS = """
-    MarketplaceModal {
+    MarketplaceView {
         display: none;
-        layer: overlay;
-        dock: top;
         width: 100%;
         height: 100%;
-        border: double $accent;
+        border: solid $primary;
         background: $surface;
         padding: 1 2;
     }
 
-    MarketplaceModal.visible {
+    MarketplaceView.visible {
         display: block;
     }
 
-    MarketplaceModal:focus-within {
-        border: double $accent;
+    MarketplaceView:focus-within {
+        border: solid $accent;
     }
 
-    MarketplaceModal #marketplace-tree {
+    MarketplaceView #marketplace-tree {
         height: 1fr;
         padding: 0 1;
         scrollbar-gutter: stable;
     }
 
-    MarketplaceModal #marketplace-footer {
-        dock: bottom;
-        height: 2;
-        width: 100%;
-        padding: 0 1;
-        border-top: solid $primary;
-        text-align: center;
-        background: $surface;
-    }
-
-    MarketplaceModal FilterInput {
+    MarketplaceView FilterInput {
         dock: bottom;
         height: 3;
-        offset-y: -2;
         background: $surface;
         border-top: solid $primary;
     }
@@ -99,11 +86,6 @@ class MarketplaceModal(Widget):
         def __init__(self, plugin: MarketplacePlugin) -> None:
             self.plugin = plugin
             super().__init__()
-
-    class ModalClosed(Message):
-        """Emitted when modal is closed."""
-
-        pass
 
     class OpenPluginFolder(Message):
         """Emitted when user requests to open plugin folder."""
@@ -176,6 +158,11 @@ class MarketplaceModal(Widget):
 
         pass
 
+    class FooterChanged(Message):
+        """Emitted when footer content should be updated."""
+
+        pass
+
     def __init__(
         self,
         name: str | None = None,
@@ -196,6 +183,7 @@ class MarketplaceModal(Widget):
         self._collapsed_marketplaces: set[str] = (
             set()
         )  # Track collapsed, default=expanded
+        self._selected_data: MarketplacePlugin | Marketplace | None = None
 
     def compose(self) -> ComposeResult:
         tree: Tree[MarketplacePlugin | Marketplace | None] = Tree(
@@ -206,20 +194,18 @@ class MarketplaceModal(Widget):
         yield tree
         self._filter_input = FilterInput(id="marketplace-filter")
         yield self._filter_input
-        yield Static("", id="marketplace-footer")
         self._scope_selector = ScopeSelector()
         yield self._scope_selector
 
     def on_tree_node_highlighted(
         self, event: Tree.NodeHighlighted[MarketplacePlugin | Marketplace | None]
     ) -> None:
-        """Update footer when tree selection changes."""
-        self._update_footer(event.node.data)
+        """Update selection and notify footer change."""
+        self._selected_data = event.node.data
+        self.post_message(self.FooterChanged())
 
-    def _update_footer(self, data: MarketplacePlugin | Marketplace | None) -> None:
-        """Update footer based on selected item."""
-        footer = self.query_one("#marketplace-footer", Static)
-
+    def get_footer_text(self) -> str:
+        """Return footer text based on current selection and filter state."""
         installed_filter = format_keybinding(
             "i", "Installed", active=self._installed_only_filter
         )
@@ -230,22 +216,19 @@ class MarketplaceModal(Widget):
             "/", "Search", active=bool(self._filter_query)
         )
 
-        sep = "[dim]│[/]"
-        nav = f"{installed_filter}  {enabled_filter}  {search_filter}  [bold]L[/] Expand  [bold]H[/] Collapse  [bold]Esc[/] Close"
+        sep = "[dim]|[/]"
+        nav = f"{installed_filter}  {enabled_filter}  {search_filter}  [bold]L[/] Expand  [bold]H[/] Collapse"
 
-        if isinstance(data, MarketplacePlugin):
-            # Plugin: o Open  e Edit  p Preview │ A Add  I Install  E Enable  D Disable  u Update  U Remove │ nav
+        if isinstance(self._selected_data, MarketplacePlugin):
             view = "[bold]o[/] Open  [bold]e[/] Edit  [bold]p[/] Preview"
             actions = "[bold]A[/] Add  [bold]I[/] Install  [bold]E[/] Enable  [bold]D[/] Disable  [bold]u[/] Update  [bold]U[/] Remove"
-            footer.update(f"{view}  {sep}  {actions}  {sep}  {nav}")
-        elif isinstance(data, Marketplace):
-            # Marketplace: o Open │ A Add  u Update  U Remove │ nav
+            return f"{view}  {sep}  {actions}  {sep}  {nav}"
+        elif isinstance(self._selected_data, Marketplace):
             view = "[bold]o[/] Open"
             actions = "[bold]A[/] Add  [bold]u[/] Update  [bold]U[/] Remove"
-            footer.update(f"{view}  {sep}  {actions}  {sep}  {nav}")
+            return f"{view}  {sep}  {actions}  {sep}  {nav}"
         else:
-            # No selection: A Add │ nav
-            footer.update(f"[bold]A[/] Add  {sep}  {nav}")
+            return f"[bold]A[/] Add  {sep}  {nav}"
 
     def set_loader(self, loader: MarketplaceLoader) -> None:
         """Set the marketplace loader."""
@@ -257,11 +240,11 @@ class MarketplaceModal(Widget):
 
         logger = logging.getLogger(__name__)
         logger.debug(
-            f"[MARKETPLACE MODAL] show() called, preserve_state={preserve_state}"
+            f"[MARKETPLACE VIEW] show() called, preserve_state={preserve_state}"
         )
 
         if not preserve_state:
-            logger.debug("[MARKETPLACE MODAL] Loading data and building tree")
+            logger.debug("[MARKETPLACE VIEW] Loading data and building tree")
             self._installed_only_filter = False
             self._enabled_only_filter = False
             self._auto_collapse = auto_collapse
@@ -271,17 +254,18 @@ class MarketplaceModal(Widget):
             self._build_tree()
             self._select_first_node()
         self.add_class("visible")
-        logger.debug("[MARKETPLACE MODAL] Added 'visible' class")
+        logger.debug("[MARKETPLACE VIEW] Added 'visible' class")
         if self._tree:
             self._tree.focus()
-            logger.debug("[MARKETPLACE MODAL] Focused tree")
+            logger.debug("[MARKETPLACE VIEW] Focused tree")
 
     def _select_first_node(self) -> None:
         """Select the first marketplace node in the tree."""
         if self._tree and self._tree.root.children:
             first_node = self._tree.root.children[0]
             self._tree.move_cursor(first_node)
-            self._update_footer(first_node.data)
+            self._selected_data = first_node.data
+            self.post_message(self.FooterChanged())
 
     def hide(self, preserve_state: bool = False) -> None:
         """Hide the modal."""
@@ -485,13 +469,10 @@ class MarketplaceModal(Widget):
 
         return f"{status_icon} {plugin.name}{version_display}{desc}"
 
-    def action_close_or_cancel(self) -> None:
-        """Close filter input or modal."""
+    def action_cancel_filter(self) -> None:
+        """Cancel filter input if visible."""
         if self._filter_input and self._filter_input.is_visible:
             self._filter_input.action_cancel()
-        else:
-            self.hide()
-            self.post_message(self.ModalClosed())
 
     def action_search(self) -> None:
         """Show the filter input."""
@@ -513,9 +494,10 @@ class MarketplaceModal(Widget):
     def _update_footer_for_current_selection(self) -> None:
         """Update footer based on current tree selection."""
         if self._tree and self._tree.cursor_node:
-            self._update_footer(self._tree.cursor_node.data)
+            self._selected_data = self._tree.cursor_node.data
         else:
-            self._update_footer(None)
+            self._selected_data = None
+        self.post_message(self.FooterChanged())
 
     def on_filter_input_filter_changed(self, event: FilterInput.FilterChanged) -> None:
         """Handle real-time filter changes."""
@@ -726,7 +708,8 @@ class MarketplaceModal(Widget):
             if isinstance(data, Marketplace):
                 if selected_id == f"marketplace:{data.entry.name}":
                     self._tree.move_cursor(node)
-                    self._update_footer(data)
+                    self._selected_data = data
+                    self.post_message(self.FooterChanged())
                     return
                 for child in node.children:
                     child_data = child.data
@@ -735,7 +718,8 @@ class MarketplaceModal(Widget):
                         and child_data.full_plugin_id == selected_id
                     ):
                         self._tree.move_cursor(child)
-                        self._update_footer(child_data)
+                        self._selected_data = child_data
+                        self.post_message(self.FooterChanged())
                         return
 
     def on_scope_selector_scope_selected(

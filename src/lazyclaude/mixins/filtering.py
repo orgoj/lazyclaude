@@ -6,7 +6,6 @@ from lazyclaude.models.customization import ConfigLevel
 
 if TYPE_CHECKING:
     from lazyclaude.services.discovery import ConfigDiscoveryService
-    from lazyclaude.widgets.app_footer import AppFooter
     from lazyclaude.widgets.detail_pane import MainPane
     from lazyclaude.widgets.filter_input import FilterInput
     from lazyclaude.widgets.status_panel import StatusPanel
@@ -22,7 +21,6 @@ class FilterMixin:
     _main_pane: "MainPane | None"
     _filter_input: "FilterInput | None"
     _status_panel: "StatusPanel | None"
-    _app_footer: "AppFooter | None"
     _discovery_service: "ConfigDiscoveryService"
 
     def action_filter_all(self) -> None:
@@ -78,10 +76,9 @@ class FilterMixin:
         disabled_active = self._plugin_enabled_filter is None
         if self._status_panel:
             self._status_panel.disabled_filter_active = disabled_active
-        if self._app_footer:
-            self._app_footer.disabled_filter_active = disabled_active
         self._update_panels()  # type: ignore[attr-defined]
         self._update_subtitle()  # type: ignore[attr-defined]
+        self._update_footer()  # type: ignore[attr-defined]
 
     def action_search(self) -> None:
         """Activate search mode."""
@@ -103,5 +100,4 @@ class FilterMixin:
             else:
                 project_name = self._discovery_service.project_root.name
                 self._status_panel.config_path = project_name
-        if self._app_footer:
-            self._app_footer.filter_level = level
+        self._update_footer()  # type: ignore[attr-defined]

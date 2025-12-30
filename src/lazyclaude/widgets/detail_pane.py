@@ -11,6 +11,7 @@ from textual.reactive import reactive
 from textual.widget import Widget
 from textual.widgets import Static
 
+from lazyclaude.bindings import PANEL_FOCUS_BINDINGS
 from lazyclaude.models.customization import Customization, MemoryFileRef
 
 TEXTUAL_TO_PYGMENTS_THEME: dict[str, str] = {
@@ -36,6 +37,7 @@ class MainPane(Widget):
     """Main pane with switchable content/metadata views."""
 
     BINDINGS = [
+        *PANEL_FOCUS_BINDINGS,
         Binding("[", "prev_view", "Prev View", show=False),
         Binding("]", "next_view", "Next View", show=False),
         Binding("j", "scroll_down", "Scroll down", show=False),
