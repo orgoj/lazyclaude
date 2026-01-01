@@ -451,18 +451,22 @@ class MarketplaceView(Widget):
     def _render_plugin_label(self, plugin: MarketplacePlugin) -> str:
         """Render a plugin node label."""
         # Collect scopes by status
+        # Status values: enabled, disabled, override_enabled, override_disabled, not_installed
         installed_scopes: list[str] = []
         enabled_scopes: list[str] = []
         disabled_scopes: list[str] = []
 
         for scope in ["user", "project", "local"]:
             status = plugin.scope_status.get(scope, "not_installed")
-            if status != "not_installed":
+            # Only "enabled" and "disabled" mean actually installed in that scope
+            if status in ("enabled", "disabled"):
                 installed_scopes.append(scope[0])  # u, p, l
-                if status == "enabled":
-                    enabled_scopes.append(scope[0])
-                else:
-                    disabled_scopes.append(scope[0])
+            # Enabled includes actual enabled + override_enabled
+            if status in ("enabled", "override_enabled"):
+                enabled_scopes.append(scope[0])
+            # Disabled includes actual disabled + override_disabled
+            elif status in ("disabled", "override_disabled"):
+                disabled_scopes.append(scope[0])
 
         if not installed_scopes:
             status_icon = "[ ]"

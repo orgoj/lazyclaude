@@ -144,9 +144,9 @@ class MarketplaceLoader:
         scope_status = self._get_plugin_scope_status(full_id)
 
         # Derive is_installed and is_enabled from scope_status
-        # Plugin is installed if it's installed in any scope for the current project
+        # Plugin is installed if it's actually installed in any scope (not just override)
         is_installed = any(
-            status != "not_installed" for status in scope_status.values()
+            status in ("enabled", "disabled") for status in scope_status.values()
         )
         # Plugin is enabled if it's enabled in any scope for the current project
         is_enabled = any(status == "enabled" for status in scope_status.values())
@@ -310,7 +310,12 @@ class MarketplaceLoader:
             plugin_id: The plugin ID to check
 
         Returns:
-            Dict mapping scope names to status: "enabled", "disabled", or "not_installed"
+            Dict mapping scope names to status:
+            - "enabled" - installed in this scope and enabled
+            - "disabled" - installed in this scope and disabled
+            - "override_enabled" - NOT installed here, but has enable override
+            - "override_disabled" - NOT installed here, but has disable override
+            - "not_installed" - not installed, no override
         """
         if not self._plugin_loader:
             return {
@@ -350,17 +355,20 @@ class MarketplaceLoader:
             has_override = plugin_id in enabled_map
             override_value = enabled_map.get(plugin_id, True)
 
-            if has_override:
-                # Explicit override exists in this scope's settings
-                if not override_value:
+            if installed_in_scope:
+                # Plugin is actually installed in this scope
+                if has_override and not override_value:
                     status[scope_type] = "disabled"
-                elif is_installed_anywhere:
+                else:
                     status[scope_type] = "enabled"
+            elif has_override:
+                # Not installed here, but has an override in settings
+                if not override_value:
+                    status[scope_type] = "override_disabled"
+                elif is_installed_anywhere:
+                    status[scope_type] = "override_enabled"
                 else:
                     status[scope_type] = "not_installed"
-            elif installed_in_scope:
-                # Installed in this scope, no override - defaults to enabled
-                status[scope_type] = "enabled"
             else:
                 status[scope_type] = "not_installed"
 
