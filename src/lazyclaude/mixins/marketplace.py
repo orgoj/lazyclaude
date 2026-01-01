@@ -1,9 +1,11 @@
 """Marketplace mixin for LazyClaude application."""
 
+import json
 import logging
 import os
 import shlex
 import subprocess
+from pathlib import Path
 from typing import TYPE_CHECKING
 
 from textual import work
@@ -175,9 +177,8 @@ class MarketplaceMixin:
         """Handle plugin preview request from marketplace modal."""
         self._enter_plugin_preview(message.plugin)
 
-    @work(thread=True)
-    def _run_plugin_command(self, cmd: list[str], success_msg: str) -> None:
-        """Run a plugin command in a background worker."""
+    def _execute_single_command(self, cmd: list[str], success_msg: str) -> None:
+        """Execute a single plugin command (must be called from worker thread)."""
         cmd_str = shlex.join(cmd)
         project_root = getattr(self._discovery_service, "project_root", None)
         logger.debug(f"[PLUGIN CMD] {cmd_str} (cwd={project_root})")
@@ -204,6 +205,135 @@ class MarketplaceMixin:
             logger.debug(f"[PLUGIN CMD] -> FAILED: {type(e).__name__}: {e}")
             error_msg = f"Error: {str(e)}"
             self.call_from_thread(self._on_plugin_command_error, error_msg)  # type: ignore[attr-defined]
+
+    @work(thread=True)
+    def _run_plugin_command(self, cmd: list[str], success_msg: str) -> None:
+        """Run a plugin command in a background worker."""
+        self._execute_single_command(cmd, success_msg)
+
+    @work(thread=True)
+    def _run_plugin_commands_sequential(
+        self, commands: list[tuple[list[str], str]]
+    ) -> None:
+        """Run multiple plugin commands sequentially in a background worker."""
+        for cmd, success_msg in commands:
+            self._execute_single_command(cmd, success_msg)
+
+    @work(thread=True)
+    def _run_enable_disable_with_fallback(
+        self,
+        plugin_id: str,
+        scope: str,
+        action: str,
+        success_msg: str,
+    ) -> None:
+        """Try CLI for enable/disable, fall back to JSON editing if CLI fails.
+
+        This handles the case where a plugin is installed at user scope
+        but we want to disable it at project scope via settings override.
+        """
+        cmd = ["claude", "plugin", action, "-s", scope, plugin_id]
+        cmd_str = shlex.join(cmd)
+        project_root = getattr(self._discovery_service, "project_root", None)
+        logger.debug(f"[PLUGIN CMD] {cmd_str} (cwd={project_root})")
+
+        try:
+            result = subprocess.run(
+                cmd_str,
+                capture_output=True,
+                text=True,
+                check=True,
+                shell=True,
+                cwd=project_root,
+            )
+            logger.debug(f"[PLUGIN CMD] -> OK: {result.stdout.strip()}")
+            self.call_from_thread(self._on_plugin_command_success, success_msg)  # type: ignore[attr-defined]
+        except subprocess.CalledProcessError as e:
+            error_text = e.stderr or str(e)
+            logger.debug(f"[PLUGIN CMD] -> FAILED: {error_text}")
+
+            # CLI failed - always try JSON fallback for enable/disable
+            # This handles scope mismatches without relying on specific error messages
+            logger.debug("[PLUGIN CMD] CLI failed, trying JSON fallback")
+            enabled = action == "enable"
+            success = self._edit_enabled_plugins_json(plugin_id, scope, enabled)
+            if success:
+                self.call_from_thread(  # type: ignore[attr-defined]
+                    self._on_plugin_command_success,
+                    f"{success_msg} (via settings)",
+                )
+            else:
+                self.call_from_thread(  # type: ignore[attr-defined]
+                    self._on_plugin_command_error,
+                    f"CLI failed: {error_text}; JSON fallback also failed",
+                )
+        except FileNotFoundError:
+            logger.debug("[PLUGIN CMD] -> FAILED: Claude CLI not found")
+            self.call_from_thread(self._on_plugin_command_error, "Claude CLI not found")  # type: ignore[attr-defined]
+        except Exception as e:
+            logger.debug(f"[PLUGIN CMD] -> FAILED: {type(e).__name__}: {e}")
+            self.call_from_thread(self._on_plugin_command_error, f"Error: {str(e)}")  # type: ignore[attr-defined]
+
+    def _edit_enabled_plugins_json(
+        self, plugin_id: str, scope: str, enabled: bool
+    ) -> bool:
+        """Edit enabledPlugins in the appropriate settings.json file.
+
+        Args:
+            plugin_id: Plugin identifier
+            scope: "user", "project", or "local"
+            enabled: True to enable, False to disable
+
+        Returns:
+            True if successful, False otherwise
+        """
+        # Determine which settings file to edit
+        if scope == "user":
+            settings_path = Path.home() / ".claude" / "settings.json"
+        elif scope == "project":
+            project_root = getattr(self._discovery_service, "project_root", None)
+            if not project_root:
+                logger.debug("[JSON EDIT] No project root found")
+                return False
+            settings_path = project_root / ".claude" / "settings.json"
+        else:  # local
+            project_root = getattr(self._discovery_service, "project_root", None)
+            if not project_root:
+                logger.debug("[JSON EDIT] No project root found")
+                return False
+            settings_path = project_root / ".claude" / "settings.local.json"
+
+        logger.debug(f"[JSON EDIT] Editing {settings_path}")
+
+        try:
+            # Ensure directory exists
+            settings_path.parent.mkdir(parents=True, exist_ok=True)
+
+            # Load existing settings or create empty
+            if settings_path.is_file():
+                data = json.loads(settings_path.read_text(encoding="utf-8"))
+            else:
+                data = {}
+
+            # Ensure enabledPlugins exists
+            if "enabledPlugins" not in data:
+                data["enabledPlugins"] = {}
+
+            # Set the enabled state
+            data["enabledPlugins"][plugin_id] = enabled
+
+            # Write back
+            settings_path.write_text(
+                json.dumps(data, indent=2, ensure_ascii=False) + "\n",
+                encoding="utf-8",
+            )
+
+            logger.debug(f"[JSON EDIT] Set {plugin_id}={enabled} in {settings_path}")
+            return True
+
+        except (OSError, json.JSONDecodeError) as e:
+            logger.debug(f"[JSON EDIT] Failed: {e}")
+            return False
 
     def _on_plugin_command_success(self, success_msg: str) -> None:
         """Handle successful plugin command completion."""
@@ -332,11 +462,36 @@ class MarketplaceMixin:
     def on_marketplace_view_plugin_update(
         self, message: MarketplaceView.PluginUpdate
     ) -> None:
-        """Handle plugin update request."""
+        """Handle plugin update request - update in all installed scopes."""
         plugin = message.plugin
-        self.notify(f"Updating {plugin.name}...", severity="information")  # type: ignore[attr-defined]
-        cmd = ["claude", "plugin", "update", plugin.full_plugin_id]
-        self._run_plugin_command(cmd, f"Updated {plugin.name}")
+
+        # Find installed scopes (enabled or disabled means installed)
+        installed_scopes = [
+            scope
+            for scope, status in plugin.scope_status.items()
+            if status in ("enabled", "disabled")
+        ]
+
+        if not installed_scopes:
+            self.notify("Plugin not installed in any scope", severity="warning")  # type: ignore[attr-defined]
+            return
+
+        scope_names = ", ".join(installed_scopes)
+        self.notify(  # type: ignore[attr-defined]
+            f"Updating {plugin.name} in {len(installed_scopes)} scope(s): {scope_names}",
+            severity="information",
+        )
+
+        # Build commands for each installed scope
+        commands = [
+            (
+                ["claude", "plugin", "update", "-s", scope, plugin.full_plugin_id],
+                f"Updated {plugin.name} ({scope})",
+            )
+            for scope in installed_scopes
+        ]
+
+        self._run_plugin_commands_sequential(commands)
 
     def on_marketplace_view_scope_selected(
         self, message: MarketplaceView.ScopeSelected
@@ -347,11 +502,18 @@ class MarketplaceMixin:
         action = message.action
 
         try:
-            cmd = self._build_plugin_command_with_scope(plugin, scope, action)
             action_msg = f"{action.capitalize()}ing {plugin.name}..."
             success_msg = f"{action.capitalize()}ed {plugin.name}"
             self.notify(action_msg, severity="information", timeout=2.0)  # type: ignore[attr-defined]
-            self._run_plugin_command(cmd, success_msg)
+
+            # Use fallback method for enable/disable (handles scope overrides)
+            if action in ("enable", "disable"):
+                self._run_enable_disable_with_fallback(
+                    plugin.full_plugin_id, scope, action, success_msg
+                )
+            else:
+                cmd = self._build_plugin_command_with_scope(plugin, scope, action)
+                self._run_plugin_command(cmd, success_msg)
         except Exception as e:
             logger.debug(f"[MARKETPLACE] ERROR: {type(e).__name__}: {e}")
             self.notify(f"Error preparing plugin command: {e}", severity="error")  # type: ignore[attr-defined]
@@ -374,61 +536,6 @@ class MarketplaceMixin:
             cmd = []
 
         return cmd
-
-    def _get_plugin_scope_status(self, plugin: MarketplacePlugin) -> dict[str, str]:
-        """Get installation/enabled status for a plugin across all scopes.
-
-        Args:
-            plugin: The plugin to check
-
-        Returns:
-            Dict mapping scope names to status:
-            "enabled", "disabled", or "not_installed"
-        """
-        if not self._plugin_loader:
-            return {
-                "user": "not_installed",
-                "project": "not_installed",
-                "local": "not_installed",
-            }
-
-        registry = self._plugin_loader.load_registry()
-        plugin_id = plugin.full_plugin_id
-
-        status: dict[str, str] = {}
-
-        # Check each scope
-        for scope_type, scope_key in [
-            ("user", "user"),
-            ("project", "project"),
-            ("local", "local"),
-        ]:
-            # Check if installed in this scope
-            installations = registry.installed.get(plugin_id, [])
-            installed = any(
-                inst.scope == scope_type
-                and (
-                    scope_type == "user"
-                    or self._plugin_loader._matches_current_project(inst.project_path)
-                )
-                for inst in installations
-            )
-
-            if not installed:
-                status[scope_key] = "not_installed"
-                continue
-
-            # Check enabled status
-            if scope_type == "user":
-                enabled = registry.user_enabled.get(plugin_id, True)
-            elif scope_type == "project":
-                enabled = registry.project_enabled.get(plugin_id, True)
-            else:  # local
-                enabled = registry.local_enabled.get(plugin_id, True)
-
-            status[scope_key] = "enabled" if enabled else "disabled"
-
-        return status
 
     def on_marketplace_view_marketplace_remove(
         self, message: MarketplaceView.MarketplaceRemove

@@ -299,6 +299,13 @@ class MarketplaceLoader:
     def _get_plugin_scope_status(self, plugin_id: str) -> dict[str, str]:
         """Get installation/enabled status for a plugin across all scopes.
 
+        A plugin can be:
+        - Installed in a scope (user/project/local)
+        - Have an enabled/disabled override in any scope's settings.json
+
+        For example: plugin installed at user scope can be disabled at project
+        scope by setting `enabledPlugins: {"plugin_id": false}` in project settings.
+
         Args:
             plugin_id: The plugin ID to check
 
@@ -315,15 +322,22 @@ class MarketplaceLoader:
         registry = self._plugin_loader.load_registry()
         status: dict[str, str] = {}
 
+        # Check if plugin is installed in any scope
+        installations = registry.installed.get(plugin_id, [])
+        is_installed_anywhere = len(installations) > 0
+
         # Check each scope
-        for scope_type, scope_key in [
-            ("user", "user"),
-            ("project", "project"),
-            ("local", "local"),
-        ]:
-            # Check if installed in this scope
-            installations = registry.installed.get(plugin_id, [])
-            installed = any(
+        for scope_type in ["user", "project", "local"]:
+            # Get the enabled map for this scope
+            if scope_type == "user":
+                enabled_map = registry.user_enabled
+            elif scope_type == "project":
+                enabled_map = registry.project_enabled
+            else:
+                enabled_map = registry.local_enabled
+
+            # Check if installed in this specific scope
+            installed_in_scope = any(
                 inst.scope == scope_type
                 and (
                     scope_type == "user"
@@ -332,18 +346,22 @@ class MarketplaceLoader:
                 for inst in installations
             )
 
-            if not installed:
-                status[scope_key] = "not_installed"
-                continue
+            # Check for explicit override in enabledPlugins
+            has_override = plugin_id in enabled_map
+            override_value = enabled_map.get(plugin_id, True)
 
-            # Check enabled status
-            if scope_type == "user":
-                enabled = registry.user_enabled.get(plugin_id, True)
-            elif scope_type == "project":
-                enabled = registry.project_enabled.get(plugin_id, True)
-            else:  # local
-                enabled = registry.local_enabled.get(plugin_id, True)
-
-            status[scope_key] = "enabled" if enabled else "disabled"
+            if has_override:
+                # Explicit override exists in this scope's settings
+                if not override_value:
+                    status[scope_type] = "disabled"
+                elif is_installed_anywhere:
+                    status[scope_type] = "enabled"
+                else:
+                    status[scope_type] = "not_installed"
+            elif installed_in_scope:
+                # Installed in this scope, no override - defaults to enabled
+                status[scope_type] = "enabled"
+            else:
+                status[scope_type] = "not_installed"
 
         return status
