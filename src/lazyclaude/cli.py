@@ -30,7 +30,7 @@ def handle_list(args: argparse.Namespace) -> int:
     """Handle 'list' command.
 
     Args:
-        args: Parsed arguments with user_config, directory, json flags
+        args: Parsed arguments with filters
 
     Returns:
         Exit code
@@ -60,11 +60,36 @@ def handle_list(args: argparse.Namespace) -> int:
             if marketplace.plugins:
                 all_plugins.extend(marketplace.plugins)
 
+        # Apply filters
+        filtered_plugins = all_plugins
+
+        if args.installed:
+            filtered_plugins = [p for p in filtered_plugins if p.is_installed]
+
+        if args.enabled:
+            filtered_plugins = [p for p in filtered_plugins if p.is_enabled]
+
+        if args.marketplace:
+            filtered_plugins = [
+                p for p in filtered_plugins if p.marketplace_name == args.marketplace
+            ]
+
+        if args.query:
+            query_lower = args.query.lower()
+            filtered_plugins = [
+                p
+                for p in filtered_plugins
+                if query_lower in p.name.lower()
+                or query_lower in (p.description or "").lower()
+            ]
+
         # Output plugins
         if args.json:
-            output_json(all_plugins)
+            output_json(filtered_plugins)
+        elif args.names_only:
+            output_names_only(filtered_plugins)
         else:
-            output_plain(all_plugins)
+            output_plain(filtered_plugins)
 
         return 0
 
@@ -110,6 +135,16 @@ def output_json(plugins: list[MarketplacePlugin]) -> None:
         for p in plugins
     ]
     print(json_module.dumps(output, indent=2))
+
+
+def output_names_only(plugins: list[MarketplacePlugin]) -> None:
+    """Output only plugin names (one per line).
+
+    Args:
+        plugins: List of MarketplacePlugin objects
+    """
+    for plugin in plugins:
+        print(plugin.full_plugin_id)
 
 
 def format_scope_status(scope_status: dict[str, str]) -> str:

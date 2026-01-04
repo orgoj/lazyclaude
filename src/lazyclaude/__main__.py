@@ -83,7 +83,20 @@ def main() -> None:
 
     # Add CLI subcommands (placeholder)
     cli_subparsers = cli_parser.add_subparsers(dest="cli_command", help="CLI commands")
-    cli_subparsers.add_parser("list", help="List plugins")
+    list_parser = cli_subparsers.add_parser("list", help="List plugins")
+    list_parser.add_argument(
+        "-i", "--installed", action="store_true", help="Show only installed plugins"
+    )
+    list_parser.add_argument(
+        "-e", "--enabled", action="store_true", help="Show only enabled plugins"
+    )
+    list_parser.add_argument("-m", "--marketplace", help="Filter by marketplace name")
+    list_parser.add_argument(
+        "-q", "--query", help="Search/filter by name or description"
+    )
+    list_parser.add_argument(
+        "-n", "--names-only", action="store_true", help="Output only plugin names"
+    )
 
     # TUI mode arguments (no subcommand)
     parser.add_argument(
