@@ -201,9 +201,10 @@ def main() -> None:
         logger.debug(f"[MAIN] cwd: {Path.cwd()}")
         logger.debug(f"[MAIN] --directory arg: {args.directory}")
 
-    project_config_path = None
-    if args.directory:
-        project_config_path = args.directory / ".claude"
+    # Resolve project root at the start (ONLY place where cwd is used)
+    # This ensures all downstream code uses absolute paths, not cwd
+    project_root = args.directory if args.directory else Path.cwd()
+    project_config_path = project_root / ".claude"
 
     try:
         logger.debug(f"[MAIN] project_config_path: {project_config_path}")

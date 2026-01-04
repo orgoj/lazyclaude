@@ -148,8 +148,11 @@ class MarketplaceLoader:
         is_installed = any(
             status in ("enabled", "disabled") for status in scope_status.values()
         )
-        # Plugin is enabled if it's enabled in any scope for the current project
-        is_enabled = any(status == "enabled" for status in scope_status.values())
+        # Plugin is enabled if it's enabled or has enable override in any scope for the current project
+        is_enabled = any(
+            status in ("enabled", "override_enabled")
+            for status in scope_status.values()
+        )
 
         # Build extra_metadata (everything except known fields)
         known_fields = {
@@ -182,7 +185,7 @@ class MarketplaceLoader:
             marketplace_name=marketplace_name,
             full_plugin_id=full_id,
             is_installed=is_installed,
-            is_enabled=is_enabled if is_installed else True,
+            is_enabled=is_enabled if is_installed else False,
             install_path=install_path,
             installed_version=installed_version,
             extra_metadata=extra_metadata,

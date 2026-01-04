@@ -139,12 +139,16 @@ class ConfigDiscoveryService(IConfigDiscoveryService):
         """
         self.user_config_path = user_config_path or Path.home() / ".claude"
         logger.debug(f"[DISCOVERY] Input project_config_path: {project_config_path}")
-        logger.debug(f"[DISCOVERY] Path.cwd(): {Path.cwd()}")
-        self.project_config_path = (
-            project_config_path.resolve()
-            if project_config_path
-            else Path.cwd() / ".claude"
-        )
+
+        # Require project_config_path - no cwd fallback in production
+        # This ensures all code uses explicit paths, not cwd
+        if not project_config_path:
+            raise ValueError(
+                "project_config_path is required. "
+                "Pass it explicitly or use --directory at startup."
+            )
+
+        self.project_config_path = project_config_path.resolve()
         self.project_root = self.project_config_path.parent
         logger.debug(
             f"[DISCOVERY] Final project_config_path: {self.project_config_path}"
