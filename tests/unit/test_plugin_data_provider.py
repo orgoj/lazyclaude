@@ -58,9 +58,7 @@ class TestPluginDataProviderFiltering:
     """Test filtering methods."""
 
     @pytest.fixture
-    def provider_with_plugins(
-        self, temp_config: dict[str, Path]
-    ) -> PluginDataProvider:
+    def provider_with_plugins(self, temp_config: dict[str, Path]) -> PluginDataProvider:
         """Provider with mocked marketplace data."""
         provider = PluginDataProvider(
             user_config_path=temp_config["user_config"],
