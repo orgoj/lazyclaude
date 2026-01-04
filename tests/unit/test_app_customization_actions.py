@@ -74,9 +74,9 @@ class TestGetAvailableTargetLevels:
     """Tests for _get_available_target_levels helper method."""
 
     @pytest.fixture
-    def app(self) -> LazyClaude:
+    def app(self, tmp_path) -> LazyClaude:  # type: ignore[type-arg]
         """Create app instance for testing."""
-        return LazyClaude()
+        return LazyClaude(project_config_path=tmp_path / ".claude")
 
     def _create_customization(
         self, ctype: CustomizationType, level: ConfigLevel
