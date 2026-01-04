@@ -5,6 +5,7 @@ import json as json_module
 import sys
 from pathlib import Path
 
+from lazyclaude.models.marketplace import MarketplacePlugin
 from lazyclaude.services.marketplace_loader import MarketplaceLoader
 from lazyclaude.services.plugin_loader import PluginLoader
 
@@ -78,7 +79,7 @@ def handle_list(args: argparse.Namespace) -> int:
         return 1
 
 
-def output_plain(plugins: list) -> None:
+def output_plain(plugins: list[MarketplacePlugin]) -> None:
     """Output plugins in plain text format (verbose).
 
     Args:
@@ -92,7 +93,7 @@ def output_plain(plugins: list) -> None:
         )
 
 
-def output_json(plugins: list) -> None:
+def output_json(plugins: list[MarketplacePlugin]) -> None:
     """Output plugins in JSON format.
 
     Args:
