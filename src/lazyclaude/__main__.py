@@ -52,6 +52,40 @@ def main() -> None:
         prog="lazyclaude",
         description="A lazygit-style TUI for visualizing Claude Code customizations",
     )
+
+    # Add subparsers for CLI vs TUI mode
+    subparsers = parser.add_subparsers(dest="command", help="Commands")
+
+    # CLI subcommand
+    cli_parser = subparsers.add_parser(
+        "cli",
+        help="CLI interface for plugin management",
+    )
+    cli_parser.add_argument(
+        "--json",
+        action="store_true",
+        help="Output in JSON format",
+    )
+    cli_parser.add_argument(
+        "-d",
+        "--directory",
+        type=Path,
+        default=None,
+        help="Project directory (default: current directory)",
+    )
+    cli_parser.add_argument(
+        "-u",
+        "--user-config",
+        type=Path,
+        default=None,
+        help="Override user config path (default: ~/.claude)",
+    )
+
+    # Add CLI subcommands (placeholder)
+    cli_subparsers = cli_parser.add_subparsers(dest="cli_command", help="CLI commands")
+    cli_subparsers.add_parser("list", help="List plugins")
+
+    # TUI mode arguments (no subcommand)
     parser.add_argument(
         "-V",
         "--version",
@@ -86,6 +120,13 @@ def main() -> None:
 
     args = parser.parse_args()
 
+    # Route to CLI or TUI
+    if args.command == "cli":
+        from lazyclaude.cli import run_cli
+
+        sys.exit(run_cli(args))
+
+    # TUI mode (existing logic below)
     # Setup debug handlers if --debug flag is set
     textual_handler = None
     if args.debug:

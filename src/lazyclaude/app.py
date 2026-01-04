@@ -533,7 +533,8 @@ class LazyClaude(
         # Mode states
         self._app_footer.preview_mode = self._plugin_preview_mode
         self._app_footer.marketplace_modal_visible = (
-            self._marketplace_view is not None and self._marketplace_view.has_class("visible")
+            self._marketplace_view is not None
+            and self._marketplace_view.has_class("visible")
         )
 
         # In preview mode, most actions are disabled
