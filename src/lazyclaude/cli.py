@@ -6,8 +6,7 @@ import sys
 from pathlib import Path
 
 from lazyclaude.models.marketplace import MarketplacePlugin
-from lazyclaude.services.marketplace_loader import MarketplaceLoader
-from lazyclaude.services.plugin_loader import PluginLoader
+from lazyclaude.services.plugin_data_provider import PluginDataProvider
 
 
 def run_cli(args: argparse.Namespace) -> int:
@@ -43,52 +42,23 @@ def handle_list(args: argparse.Namespace) -> int:
         Exit code
     """
     try:
-        # Setup paths
+        # Resolve paths at start (no cwd usage downstream)
         user_config = args.user_config or Path.home() / ".claude"
         project_root = Path(args.directory) if args.directory else Path.cwd()
-        project_config = project_root / ".claude" if project_root else None
 
-        # Load marketplaces
-        plugin_loader = PluginLoader(
+        # Use unified data provider
+        provider = PluginDataProvider(
             user_config_path=user_config,
-            project_config_path=project_config,
             project_root=project_root,
         )
-        marketplace_loader = MarketplaceLoader(
-            user_config_path=user_config,
-            plugin_loader=plugin_loader,
+
+        # Use unified filtering
+        filtered_plugins = provider.get_filtered_plugins(
+            installed_only=args.installed,
+            enabled_only=args.enabled,
+            marketplace=args.marketplace,
+            query=args.query,
         )
-
-        marketplaces = marketplace_loader.load_marketplaces()
-
-        # Collect all plugins
-        all_plugins = []
-        for marketplace in marketplaces:
-            if marketplace.plugins:
-                all_plugins.extend(marketplace.plugins)
-
-        # Apply filters
-        filtered_plugins = all_plugins
-
-        if args.installed:
-            filtered_plugins = [p for p in filtered_plugins if p.is_installed]
-
-        if args.enabled:
-            filtered_plugins = [p for p in filtered_plugins if p.is_enabled]
-
-        if args.marketplace:
-            filtered_plugins = [
-                p for p in filtered_plugins if p.marketplace_name == args.marketplace
-            ]
-
-        if args.query:
-            query_lower = args.query.lower()
-            filtered_plugins = [
-                p
-                for p in filtered_plugins
-                if query_lower in p.name.lower()
-                or query_lower in (p.description or "").lower()
-            ]
 
         # Output plugins
         if args.json:
@@ -121,7 +91,7 @@ def output_plain(plugins: list[MarketplacePlugin]) -> None:
         # Format: name@marketplace  version  [scopes]  description
         scopes = format_scope_status(plugin.scope_status)
         print(
-            f"{plugin.full_plugin_id:<35} {plugin.installed_version or '---':<10} {scopes:<20} {plugin.description}"
+            f"{plugin.full_plugin_id:<35} {plugin.installed_version or '---':<10} {scopes:<25} {plugin.description}"
         )
 
 
@@ -161,15 +131,27 @@ def format_scope_status(scope_status: dict[str, str]) -> str:
         scope_status: Dict with keys 'user', 'project', 'local'
 
     Returns:
-        Formatted string like "[I:u E:up D:l]"
+        Formatted string like "[I:u]" or "[I:up E:u]" or "[I:u E:p D:l]"
+        Only includes sections that have values.
+        Shows both direct enables and override enables.
     """
     installed = "".join(
         k[0] for k, v in scope_status.items() if v in ("enabled", "disabled")
     )
-    enabled = "".join(k[0] for k, v in scope_status.items() if v == "enabled")
+    enabled = "".join(
+        k[0] for k, v in scope_status.items() if v in ("enabled", "override_enabled")
+    )
     disabled = "".join(k[0] for k, v in scope_status.items() if v == "disabled")
 
-    return f"[I:{installed} E:{enabled} D:{disabled}]"
+    parts = []
+    if installed:
+        parts.append(f"I:{installed}")
+    if enabled:
+        parts.append(f"E:{enabled}")
+    if disabled:
+        parts.append(f"D:{disabled}")
+
+    return f"[{' '.join(parts)}]"
 
 
 def handle_enable(args: argparse.Namespace) -> int:
@@ -207,16 +189,15 @@ def toggle_plugin(args: argparse.Namespace, enabled: bool) -> int:
         Exit code
     """
     try:
-        # Determine settings file path
+        # Resolve paths at start (no cwd usage downstream)
         user_config = args.user_config or Path.home() / ".claude"
+        project_root = Path(args.directory) if args.directory else Path.cwd()
 
         if args.scope == "user":
             settings_path = user_config / "settings.json"
         elif args.scope == "project":
-            project_root = Path(args.directory) if args.directory else Path.cwd()
             settings_path = project_root / ".claude" / "settings.json"
         else:  # local
-            project_root = Path(args.directory) if args.directory else Path.cwd()
             settings_path = project_root / ".claude" / "settings.local.json"
 
         # Ensure parent directory exists
