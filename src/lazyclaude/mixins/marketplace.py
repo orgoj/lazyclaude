@@ -29,8 +29,7 @@ logger = logging.getLogger(__name__)
 if TYPE_CHECKING:
     from lazyclaude.models.settings import AppSettings
     from lazyclaude.services.discovery import ConfigDiscoveryService
-    from lazyclaude.services.marketplace_loader import MarketplaceLoader
-    from lazyclaude.services.plugin_loader import PluginLoader
+    from lazyclaude.services.plugin_data_provider import PluginDataProvider
     from lazyclaude.widgets.app_footer import AppFooter
     from lazyclaude.widgets.combined_panel import CombinedPanel
     from lazyclaude.widgets.detail_pane import MainPane
@@ -45,8 +44,7 @@ class MarketplaceMixin:
     _marketplace_view: MarketplaceView | None
     _marketplace_confirm: MarketplaceConfirm | None
     _marketplace_source_input: MarketplaceSourceInput | None
-    _marketplace_loader: "MarketplaceLoader | None"
-    _plugin_loader: "PluginLoader | None"
+    _plugin_data_provider: "PluginDataProvider | None"
     _plugin_preview_mode: bool
     _previewing_plugin: MarketplacePlugin | None
     _plugin_customizations: list[Customization]
@@ -70,11 +68,11 @@ class MarketplaceMixin:
 
     def _enter_plugin_preview(self, plugin: MarketplacePlugin) -> None:
         """Enter plugin preview mode - show plugin's customizations in panels."""
-        if not self._marketplace_loader:
-            self.notify("Marketplace loader not available", severity="error")  # type: ignore[attr-defined]
+        if not self._plugin_data_provider:
+            self.notify("Plugin data provider not available", severity="error")  # type: ignore[attr-defined]
             return
 
-        plugin_dir = self._marketplace_loader.get_plugin_source_dir(plugin)
+        plugin_dir = self._plugin_data_provider.get_plugin_source_dir(plugin)
         if not plugin_dir or not plugin_dir.exists():
             # If source is a URL, open in browser instead of showing error
             if plugin.source.startswith(("http://", "https://")):

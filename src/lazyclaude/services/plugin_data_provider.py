@@ -166,3 +166,10 @@ class PluginDataProvider:
         """Clear caches and reload data."""
         self._plugin_loader.refresh()
         self._marketplace_loader.refresh()
+
+    def get_plugin_source_dir(self, plugin: MarketplacePlugin) -> Path | None:
+        """Get the source directory for a plugin (installed or from marketplace).
+
+        Delegates to internal MarketplaceLoader.
+        """
+        return self._marketplace_loader.get_plugin_source_dir(plugin)

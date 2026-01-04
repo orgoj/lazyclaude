@@ -34,7 +34,6 @@ from lazyclaude.models.view_mode import ViewMode
 from lazyclaude.services.config_path_resolver import ConfigPathResolver
 from lazyclaude.services.discovery import ConfigDiscoveryService
 from lazyclaude.services.filter import FilterService
-from lazyclaude.services.marketplace_loader import MarketplaceLoader
 from lazyclaude.services.plugin_data_provider import PluginDataProvider
 from lazyclaude.services.settings import SettingsService
 from lazyclaude.themes import CUSTOM_THEMES
@@ -114,7 +113,6 @@ class LazyClaude(
         self._view_mode: ViewMode = ViewMode.NORMAL
         self._marketplace_confirm: MarketplaceConfirm | None = None
         self._marketplace_source_input: MarketplaceSourceInput | None = None
-        self._marketplace_loader: MarketplaceLoader | None = None
         self._plugin_data_provider: PluginDataProvider | None = None
         self._app_footer: AppFooter | None = None
         self._help_visible = False
@@ -222,16 +220,11 @@ class LazyClaude(
         self._config_path_resolver = ConfigPathResolver(
             self._discovery_service._plugin_loader,
         )
-        self._marketplace_loader = MarketplaceLoader(
-            user_config_path=self._discovery_service.user_config_path,
-            plugin_loader=self._discovery_service._plugin_loader,
-        )
         self._plugin_data_provider = PluginDataProvider(
             user_config_path=self._discovery_service.user_config_path,
             project_root=self._discovery_service.project_root,
         )
         if self._marketplace_view:
-            self._marketplace_view.set_loader(self._marketplace_loader)
             self._marketplace_view.set_provider(self._plugin_data_provider)
         if self._marketplace_source_input:
             self._marketplace_source_input.set_suggestions(

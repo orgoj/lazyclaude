@@ -12,7 +12,6 @@ from textual.widget import Widget
 from textual.widgets import Tree
 
 from lazyclaude.models.marketplace import Marketplace, MarketplacePlugin
-from lazyclaude.services.marketplace_loader import MarketplaceLoader
 from lazyclaude.services.plugin_data_provider import PluginDataProvider
 from lazyclaude.widgets.filter_input import FilterInput
 from lazyclaude.widgets.helpers.rendering import format_keybinding
@@ -191,7 +190,6 @@ class MarketplaceView(Widget):
         classes: str | None = None,
     ) -> None:
         super().__init__(name=name, id=id, classes=classes)
-        self._loader: MarketplaceLoader | None = None
         self._provider: PluginDataProvider | None = None
         self._marketplaces: list[Marketplace] = []
         self._marketplace_order: list[str] = []
@@ -256,10 +254,6 @@ class MarketplaceView(Widget):
             return f"{view}  {sep}  {actions}  {sep}  {nav}"
         else:
             return f"[bold]A[/] Add  {sep}  {nav}"
-
-    def set_loader(self, loader: MarketplaceLoader) -> None:
-        """Set the marketplace loader."""
-        self._loader = loader
 
     def set_provider(self, provider: PluginDataProvider) -> None:
         """Set the plugin data provider."""
