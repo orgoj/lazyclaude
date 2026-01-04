@@ -36,6 +36,34 @@ uv run pre-commit run --all-files      # Run all hooks manually
 
 Git hooks run automatically before commit and enforce: ruff format, ruff lint, mypy checks, and pytest.
 
+### CLI Mode
+
+```bash
+# List plugins
+lazyclaude cli list                       # List all plugins (verbose)
+lazyclaude cli list -i                    # Installed only
+lazyclaude cli list -e                    # Enabled only
+lazyclaude cli list -q handbook           # Search by name/description
+lazyclaude cli list -m marketplace-name   # Filter by marketplace
+lazyclaude cli list -n                    # Names only (plain list)
+lazyclaude cli --json list                # JSON output
+
+# Enable/disable plugins
+lazyclaude cli enable -s project plugin@marketplace   # Enable in project scope
+lazyclaude cli disable -s user plugin@marketplace     # Disable in user scope
+lazyclaude cli enable -s local plugin@marketplace     # Enable in local scope
+```
+
+Output formats:
+- Default: `plugin@marketplace  version  [I:u E:up D:l]  Description`
+- Names only: `plugin@marketplace` (one per line)
+- JSON: Structured data for scripting
+
+Scopes:
+- `user` - `~/.claude/settings.json`
+- `project` - `.claude/settings.json`
+- `local` - `.claude/settings.local.json`
+
 ## Code Style
 
 - Type hints required for all public functions
