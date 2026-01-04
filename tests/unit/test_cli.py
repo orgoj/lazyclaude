@@ -315,21 +315,24 @@ class TestEnableDisableCommands:
         fs.create_file(settings_file, contents="{}")
 
         # Act: Enable for project scope
-        with patch(
-            "sys.argv",
-            [
-                "lazyclaude",
-                "cli",
-                "-u",
-                str(fake_home / ".claude"),
-                "-d",
-                str(fake_project_root),
-                "enable",
-                "-s",
-                "project",
-                "test@marketplace",
-            ],
-        ), pytest.raises(SystemExit) as exc_info:
+        with (
+            patch(
+                "sys.argv",
+                [
+                    "lazyclaude",
+                    "cli",
+                    "-u",
+                    str(fake_home / ".claude"),
+                    "-d",
+                    str(fake_project_root),
+                    "enable",
+                    "-s",
+                    "project",
+                    "test@marketplace",
+                ],
+            ),
+            pytest.raises(SystemExit) as exc_info,
+        ):
             from lazyclaude.__main__ import main
 
             main()
@@ -363,19 +366,22 @@ class TestEnableDisableCommands:
         fs.create_file(settings_file, contents='{"enabledPlugins": {}}')
 
         # Act
-        with patch(
-            "sys.argv",
-            [
-                "lazyclaude",
-                "cli",
-                "-u",
-                str(fake_home / ".claude"),
-                "disable",
-                "-s",
-                "user",
-                "test@marketplace",
-            ],
-        ), pytest.raises(SystemExit) as exc_info:
+        with (
+            patch(
+                "sys.argv",
+                [
+                    "lazyclaude",
+                    "cli",
+                    "-u",
+                    str(fake_home / ".claude"),
+                    "disable",
+                    "-s",
+                    "user",
+                    "test@marketplace",
+                ],
+            ),
+            pytest.raises(SystemExit) as exc_info,
+        ):
             from lazyclaude.__main__ import main
 
             main()
