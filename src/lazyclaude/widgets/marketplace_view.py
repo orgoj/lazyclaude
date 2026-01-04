@@ -13,6 +13,7 @@ from textual.widgets import Tree
 
 from lazyclaude.models.marketplace import Marketplace, MarketplacePlugin
 from lazyclaude.services.marketplace_loader import MarketplaceLoader
+from lazyclaude.services.plugin_data_provider import PluginDataProvider
 from lazyclaude.widgets.filter_input import FilterInput
 from lazyclaude.widgets.helpers.rendering import format_keybinding
 from lazyclaude.widgets.marketplace_info_panel import MarketplaceInfoPanel
@@ -191,6 +192,7 @@ class MarketplaceView(Widget):
     ) -> None:
         super().__init__(name=name, id=id, classes=classes)
         self._loader: MarketplaceLoader | None = None
+        self._provider: PluginDataProvider | None = None
         self._marketplaces: list[Marketplace] = []
         self._marketplace_order: list[str] = []
         self._tree: Tree[MarketplacePlugin | Marketplace | None] | None = None
@@ -259,6 +261,10 @@ class MarketplaceView(Widget):
         """Set the marketplace loader."""
         self._loader = loader
 
+    def set_provider(self, provider: PluginDataProvider) -> None:
+        """Set the plugin data provider."""
+        self._provider = provider
+
     def show(self, preserve_state: bool = False, auto_collapse: bool = True) -> None:
         """Show the modal and load marketplace data."""
         import logging
@@ -302,9 +308,9 @@ class MarketplaceView(Widget):
                 self._filter_input.hide()
 
     def _load_data(self) -> None:
-        """Load marketplace data from the loader."""
-        if self._loader:
-            marketplaces = self._loader.load_marketplaces()
+        """Load marketplace data from the provider."""
+        if self._provider:
+            marketplaces = self._provider.get_marketplaces()
             if not self._marketplace_order:
                 marketplaces.sort(
                     key=lambda m: sum(1 for p in m.plugins if p.is_installed),
@@ -367,7 +373,10 @@ class MarketplaceView(Widget):
                 mp_node.expand()
 
     def _get_filtered_marketplaces(self) -> list[Marketplace]:
-        """Get marketplaces with plugins filtered by query, installed and enabled filters."""
+        """Get filtered marketplaces using unified provider."""
+        if not self._provider:
+            return []
+
         if (
             not self._filter_query
             and not self._installed_only_filter
@@ -375,39 +384,11 @@ class MarketplaceView(Widget):
         ):
             return self._marketplaces
 
-        query = self._filter_query.lower() if self._filter_query else ""
-        filtered: list[Marketplace] = []
-
-        for marketplace in self._marketplaces:
-            if marketplace.error:
-                if (
-                    not self._installed_only_filter
-                    and not self._enabled_only_filter
-                    and query in marketplace.entry.name.lower()
-                ):
-                    filtered.append(marketplace)
-                continue
-
-            matching_plugins = []
-            for plugin in marketplace.plugins:
-                if self._installed_only_filter and not plugin.is_installed:
-                    continue
-                if self._enabled_only_filter and not (
-                    plugin.is_installed and plugin.is_enabled
-                ):
-                    continue
-                if query and not (
-                    query in plugin.name.lower()
-                    or query in plugin.description.lower()
-                    or query in marketplace.entry.name.lower()
-                ):
-                    continue
-                matching_plugins.append(plugin)
-
-            if matching_plugins:
-                filtered.append(replace(marketplace, plugins=matching_plugins))
-
-        return filtered
+        return self._provider.get_filtered_marketplaces(
+            installed_only=self._installed_only_filter,
+            enabled_only=self._enabled_only_filter,
+            query=self._filter_query or None,
+        )
 
     @staticmethod
     def _is_semver(version: str | None) -> bool:
@@ -786,8 +767,8 @@ class MarketplaceView(Widget):
             elif isinstance(data, Marketplace):
                 selected_id = f"marketplace:{data.entry.name}"
 
-        if self._loader:
-            self._loader.refresh()
+        if self._provider:
+            self._provider.refresh()
         self._load_data()
         self._build_tree()
 
