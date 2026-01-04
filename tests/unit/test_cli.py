@@ -289,3 +289,100 @@ class TestListFilters:
         captured = capsys.readouterr()
         assert captured.out.strip() == "plugin1@test"
         assert "Description here" not in captured.out
+
+
+class TestEnableDisableCommands:
+    """Test enable and disable CLI commands."""
+
+    def test_enable_plugin_in_project_scope(
+        self, capsys, fake_home: Path, fake_project_root: Path, fs
+    ) -> None:
+        """Enable command adds plugin to project settings.json."""
+        # Arrange: Plugin installed in user scope
+        plugins_dir = fake_home / ".claude" / "plugins"
+        fs.create_dir(plugins_dir)
+
+        installed_file = plugins_dir / "installed_plugins.json"
+        fs.create_file(
+            installed_file,
+            contents='{"plugins": {"test@marketplace": [{"scope": "user", "installPath": "/fake/plugin", "version": "1.0.0"}]}}',
+        )
+
+        project_claude = fake_project_root / ".claude"
+        fs.create_dir(project_claude)
+
+        settings_file = project_claude / "settings.json"
+        fs.create_file(settings_file, contents="{}")
+
+        # Act: Enable for project scope
+        with patch(
+            "sys.argv",
+            [
+                "lazyclaude",
+                "cli",
+                "-u",
+                str(fake_home / ".claude"),
+                "-d",
+                str(fake_project_root),
+                "enable",
+                "-s",
+                "project",
+                "test@marketplace",
+            ],
+        ), pytest.raises(SystemExit) as exc_info:
+            from lazyclaude.__main__ import main
+
+            main()
+
+        # Assert: settings.json updated
+        assert exc_info.value.code == 0
+        import json as json_module
+
+        settings = json_module.loads(settings_file.read_text())
+        assert settings["enabledPlugins"]["test@marketplace"] is True
+
+        captured = capsys.readouterr()
+        assert "✓ Enabled test@marketplace in project scope" in captured.out
+
+    def test_disable_plugin_in_user_scope(self, fake_home: Path, fs) -> None:
+        """Disable command sets plugin to false in user settings.json."""
+        # Arrange
+        user_claude = fake_home / ".claude"
+        fs.create_dir(user_claude)
+
+        plugins_dir = user_claude / "plugins"
+        fs.create_dir(plugins_dir)
+
+        installed_file = plugins_dir / "installed_plugins.json"
+        fs.create_file(
+            installed_file,
+            contents='{"plugins": {"test@marketplace": [{"scope": "user", "installPath": "/fake/plugin", "version": "1.0.0"}]}}',
+        )
+
+        settings_file = user_claude / "settings.json"
+        fs.create_file(settings_file, contents='{"enabledPlugins": {}}')
+
+        # Act
+        with patch(
+            "sys.argv",
+            [
+                "lazyclaude",
+                "cli",
+                "-u",
+                str(fake_home / ".claude"),
+                "disable",
+                "-s",
+                "user",
+                "test@marketplace",
+            ],
+        ), pytest.raises(SystemExit) as exc_info:
+            from lazyclaude.__main__ import main
+
+            main()
+
+        # Assert
+        assert exc_info.value.code == 0
+        import json as json_module
+
+        settings = json_module.loads(settings_file.read_text())
+        assert settings["enabledPlugins"]["test@marketplace"] is False

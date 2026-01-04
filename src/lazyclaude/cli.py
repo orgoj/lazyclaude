@@ -19,11 +19,18 @@ def run_cli(args: argparse.Namespace) -> int:
     Returns:
         Exit code (0 for success, 1 for error, 2 for invalid args)
     """
-    if args.cli_command == "list":
-        return handle_list(args)
+    command_map = {
+        "list": handle_list,
+        "enable": handle_enable,
+        "disable": handle_disable,
+    }
 
-    print(f"Unknown command: {args.cli_command}", file=sys.stderr)
-    return 2
+    handler = command_map.get(args.cli_command)
+    if not handler:
+        print(f"Unknown command: {args.cli_command}", file=sys.stderr)
+        return 2
+
+    return handler(args)
 
 
 def handle_list(args: argparse.Namespace) -> int:
@@ -163,3 +170,97 @@ def format_scope_status(scope_status: dict[str, str]) -> str:
     disabled = "".join(k[0] for k, v in scope_status.items() if v == "disabled")
 
     return f"[I:{installed} E:{enabled} D:{disabled}]"
+
+
+def handle_enable(args: argparse.Namespace) -> int:
+    """Handle 'enable' command.
+
+    Args:
+        args: Parsed arguments with scope and plugin_id
+
+    Returns:
+        Exit code
+    """
+    return toggle_plugin(args, enabled=True)
+
+
+def handle_disable(args: argparse.Namespace) -> int:
+    """Handle 'disable' command.
+
+    Args:
+        args: Parsed arguments with scope and plugin_id
+
+    Returns:
+        Exit code
+    """
+    return toggle_plugin(args, enabled=False)
+
+
+def toggle_plugin(args: argparse.Namespace, enabled: bool) -> int:
+    """Enable or disable a plugin in specific scope.
+
+    Args:
+        args: Parsed arguments with scope, plugin_id, user_config, directory
+        enabled: True to enable, False to disable
+
+    Returns:
+        Exit code
+    """
+    try:
+        # Determine settings file path
+        user_config = args.user_config or Path.home() / ".claude"
+
+        if args.scope == "user":
+            settings_path = user_config / "settings.json"
+        elif args.scope == "project":
+            project_root = Path(args.directory) if args.directory else Path.cwd()
+            settings_path = project_root / ".claude" / "settings.json"
+        else:  # local
+            project_root = Path(args.directory) if args.directory else Path.cwd()
+            settings_path = project_root / ".claude" / "settings.local.json"
+
+        # Ensure parent directory exists
+        settings_path.parent.mkdir(parents=True, exist_ok=True)
+
+        # Load or create settings
+        if settings_path.exists():
+            settings = json_module.loads(settings_path.read_text())
+        else:
+            settings = {}
+
+        # Update enabledPlugins
+        if "enabledPlugins" not in settings:
+            settings["enabledPlugins"] = {}
+
+        settings["enabledPlugins"][args.plugin_id] = enabled
+
+        # Write back
+        settings_path.write_text(json_module.dumps(settings, indent=2) + "\n")
+
+        # Output success
+        action = "Enabled" if enabled else "Disabled"
+        if args.json:
+            print(
+                json_module.dumps(
+                    {
+                        "success": True,
+                        "plugin": args.plugin_id,
+                        "scope": args.scope,
+                        "action": action.lower(),
+                    }
+                )
+            )
+        else:
+            print(f"✓ {action} {args.plugin_id} in {args.scope} scope")
+
+        return 0
+
+    except Exception as e:
+        if args.json:
+            print(
+                json_module.dumps({"success": False, "error": str(e)}),
+                file=sys.stderr,
+            )
+        else:
+            print(f"✗ Error: {e}", file=sys.stderr)
+        return 1

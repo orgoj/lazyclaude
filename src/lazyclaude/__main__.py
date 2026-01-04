@@ -98,6 +98,28 @@ def main() -> None:
         "-n", "--names-only", action="store_true", help="Output only plugin names"
     )
 
+    # Enable command
+    enable_parser = cli_subparsers.add_parser("enable", help="Enable plugin")
+    enable_parser.add_argument(
+        "-s",
+        "--scope",
+        required=True,
+        choices=["user", "project", "local"],
+        help="Target scope",
+    )
+    enable_parser.add_argument("plugin_id", help="Plugin ID (name@marketplace)")
+
+    # Disable command
+    disable_parser = cli_subparsers.add_parser("disable", help="Disable plugin")
+    disable_parser.add_argument(
+        "-s",
+        "--scope",
+        required=True,
+        choices=["user", "project", "local"],
+        help="Target scope",
+    )
+    disable_parser.add_argument("plugin_id", help="Plugin ID (name@marketplace)")
+
     # TUI mode arguments (no subcommand)
     parser.add_argument(
         "-V",
