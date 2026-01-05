@@ -4,7 +4,33 @@
 
 # LazyClaude
 
+> **Note:** This is a fork of [NikiforovAll/lazyclaude](https://github.com/NikiforovAll/lazyclaude). See "About This Fork" below for details on changes and differences.
+
 A lazygit-style TUI for visualizing Claude Code customizations.
+
+## About This Fork
+
+This fork started as a simple modification to add scope selection to the marketplace dialog, but evolved into a significant rewrite with additional features that go beyond the original project and even the official `claude plugin` CLI.
+
+### Key Differences from Upstream
+
+- **Plugin CLI mode** (`lazyclaude cli`) - CLI interface for plugin management (plugins only, not general customizations):
+  - `lazyclaude cli list` - List all plugins with rich filtering options
+  - `lazyclaude cli enable/disable` - Enable/disable plugins at specific scopes
+  - JSON output for scripting/integration
+  - Filtering by installation status, enabled state, marketplace, and search queries
+
+- **Multi-scope plugin support:**
+  - User scope (`~/.claude/settings.json`) - Personal installations
+  - Project scope (`./.claude/settings.json`) - Team-shared, version controlled
+  - Local scope (`./.claude/settings.local.json`) - Local, not version controlled
+
+- **Enhanced TUI features:**
+  - Scope selector dialog when enabling/disabling plugins
+  - Visual status indicators for plugin state across all scopes
+  - Preview mode for installed plugins (explore customizations, README)
+
+**Status:** This fork has diverged significantly from upstream. Merging back to the original repository is unlikely. For the original upstream project, see [NikiforovAll/lazyclaude](https://github.com/NikiforovAll/lazyclaude).
 
 ![Demo](assets/demo.png)
 
@@ -37,6 +63,33 @@ Press `p` in the marketplace on an installed plugin to explore its customization
 ![Preview Plugin](docs/assets/demo-preview-plugin.gif)
 
 📖 **[Full User Guide](docs/user-guide.md)** for detailed workflows and keyboard shortcuts.
+
+### CLI Mode (Plugins Only)
+
+This fork includes a CLI interface for **plugin management only** (not available in upstream):
+
+```bash
+# List plugins
+lazyclaude cli list                       # List all plugins (verbose)
+lazyclaude cli list -i                    # Installed only
+lazyclaude cli list -e                    # Enabled only
+lazyclaude cli list -q handbook           # Search by name/description
+lazyclaude cli list -m marketplace-name   # Filter by marketplace
+lazyclaude cli list -n                    # Names only (plain list)
+lazyclaude cli --json list                # JSON output for scripting
+
+# Enable/disable plugins (with scope selection)
+lazyclaude cli enable -s project plugin@marketplace   # Enable in project scope
+lazyclaude cli disable -s user plugin@marketplace     # Disable in user scope
+lazyclaude cli enable -s local plugin@marketplace     # Enable in local scope
+```
+
+**Scopes:**
+- `user` - Personal installation at `~/.claude/` (available across all projects)
+- `project` - Team-shared at `./.claude/` (version controlled)
+- `local` - Local at `./.claude/local/` (not version controlled)
+
+
 
 
 ## Development
