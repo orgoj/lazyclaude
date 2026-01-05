@@ -2,6 +2,7 @@
 
 import json
 import logging
+import warnings
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -118,6 +119,12 @@ class PluginLoader:
     def get_all_plugins(self) -> list[PluginInfo]:
         """Get list of ALL plugin infos (enabled and disabled) with resolved install paths.
 
+        Deprecated: Use UnifiedDataLoader.get_plugin_states() instead.
+
+        This method has incorrect scope priority logic and will be removed.
+        It returns PluginInfo objects that only consider one scope at a time,
+        not the hierarchical priority (local > project > user).
+
         Uses three-phase discovery:
         1. User plugins: All entries with scope="user"
         2. Project plugins: Entries from project's settings.json enabledPlugins
@@ -125,6 +132,11 @@ class PluginLoader:
         3. Local plugins: Entries from project's settings.local.json enabledPlugins
            that have scope="local" and matching projectPath
         """
+        warnings.warn(
+            "PluginLoader.get_all_plugins() is deprecated, use UnifiedDataLoader.get_plugin_states() instead",
+            DeprecationWarning,
+            stacklevel=2,
+        )
         registry = self.load_registry()
         plugins: list[PluginInfo] = []
 

@@ -279,6 +279,18 @@ class UnifiedDataLoader:
 
         return ScopeState(installed=False)
 
+    def get_plugin_states(self) -> list[PluginState]:
+        """Get all plugin states for discovery (like CLI does).
+
+        Returns:
+            List of PluginState objects from all marketplaces
+        """
+        marketplaces = self.load_marketplace_states()
+        all_plugins: list[PluginState] = []
+        for mp in marketplaces:
+            all_plugins.extend(mp.plugins)
+        return all_plugins
+
     def _build_plugin_scope_state(
         self,
         plugin_id: str,

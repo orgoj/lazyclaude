@@ -10,8 +10,9 @@ from lazyclaude.models.customization import (
     Customization,
     CustomizationType,
     PluginInfo,
+    PluginScope,
 )
-from lazyclaude.models.marketplace import MarketplacePlugin
+from lazyclaude.models.marketplace import MarketplacePlugin, PluginState
 from lazyclaude.services.filesystem_scanner import (
     FilesystemScanner,
     GlobStrategy,
@@ -26,6 +27,7 @@ from lazyclaude.services.parsers.skill import SkillParser
 from lazyclaude.services.parsers.slash_command import SlashCommandParser
 from lazyclaude.services.parsers.subagent import SubagentParser
 from lazyclaude.services.plugin_loader import PluginLoader
+from lazyclaude.services.unified_data_loader import UnifiedDataLoader
 
 logger = logging.getLogger(__name__)
 
@@ -159,6 +161,11 @@ class ConfigDiscoveryService(IConfigDiscoveryService):
         self._scanner = FilesystemScanner(gitignore_filter=self._gitignore_filter)
         self._plugin_loader = PluginLoader(
             self.user_config_path,
+            project_config_path=self.project_config_path,
+            project_root=self.project_root,
+        )
+        self._unified_data_loader = UnifiedDataLoader(
+            user_config_path=self.user_config_path,
             project_config_path=self.project_config_path,
             project_root=self.project_root,
         )
@@ -603,7 +610,19 @@ class ConfigDiscoveryService(IConfigDiscoveryService):
         """Discover customizations from ALL installed plugins (enabled and disabled)."""
         customizations: list[Customization] = []
 
-        for plugin_info in self._plugin_loader.get_all_plugins():
+        # Use UnifiedDataLoader to get plugin states with correct scope priority
+        plugin_states = self._unified_data_loader.get_plugin_states()
+
+        for plugin_state in plugin_states:
+            # Use effective_enabled which implements local > project > user priority
+            if not plugin_state.effective_enabled:
+                continue
+
+            # Convert PluginState to PluginInfo for compatibility with existing code
+            plugin_info = self._plugin_state_to_info(plugin_state)
+            if not plugin_info:
+                continue
+
             install_path = plugin_info.install_path
 
             for config in SCAN_CONFIGS.values():
@@ -622,6 +641,42 @@ class ConfigDiscoveryService(IConfigDiscoveryService):
             )
 
         return customizations
+
+    def _plugin_state_to_info(self, plugin_state: PluginState) -> PluginInfo | None:
+        """Convert PluginState to PluginInfo for discovery.
+
+        Uses scope priority: local > project > user to determine install_path.
+
+        Args:
+            plugin_state: Plugin state from UnifiedDataLoader
+
+        Returns:
+            PluginInfo for the highest priority scope, or None if not installed
+        """
+        # Determine which scope to use (priority: local > project > user)
+        scope_priority = [
+            (ConfigLevel.PROJECT_LOCAL, plugin_state.local, PluginScope.PROJECT_LOCAL),
+            (ConfigLevel.PROJECT, plugin_state.project, PluginScope.PROJECT),
+            (ConfigLevel.USER, plugin_state.user, PluginScope.USER),
+        ]
+
+        for config_level, scope_state, plugin_scope in scope_priority:
+            if scope_state.installed and scope_state.install_path:
+                short_name = plugin_state.plugin_id.split("@")[0]
+                return PluginInfo(
+                    plugin_id=plugin_state.plugin_id,
+                    short_name=short_name,
+                    version=scope_state.version or "unknown",
+                    install_path=scope_state.install_path,
+                    is_local=config_level == ConfigLevel.PROJECT_LOCAL,
+                    is_enabled=plugin_state.effective_enabled,
+                    scope=plugin_scope,
+                    project_path=self.project_root
+                    if config_level != ConfigLevel.USER
+                    else None,
+                )
+
+        return None
 
     def _discover_plugin_mcps(
         self, install_path: Path, plugin_info: PluginInfo
