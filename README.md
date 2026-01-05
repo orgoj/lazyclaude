@@ -84,10 +84,21 @@ lazyclaude cli disable -s user plugin@marketplace     # Disable in user scope
 lazyclaude cli enable -s local plugin@marketplace     # Enable in local scope
 ```
 
+**Output Format:** `plugin@marketplace  version  user/project/local  description`
+
+Status indicators for each scope:
+- `Ie` - Installed and enabled
+- `Id` - Installed but disabled
+- `e` - Not installed, but marked as enabled in settings (pre-install)
+- `d` - Not installed, but marked as disabled in settings
+- `-` - Not installed and not in settings
+
+Example: `Ie/-/-` = installed+enabled in user scope, not in project/local
+
 **Scopes:**
 - `user` - Personal installation at `~/.claude/` (available across all projects)
 - `project` - Team-shared at `./.claude/` (version controlled)
-- `local` - Local at `./.claude/local/` (not version controlled)
+- `local` - Local at `./.claude/settings.local.json` (not version controlled)
 
 
 
