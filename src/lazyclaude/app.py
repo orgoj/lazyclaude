@@ -3,6 +3,7 @@
 import os
 import shlex
 import subprocess
+import sys
 import traceback
 from pathlib import Path
 
@@ -28,14 +29,14 @@ from lazyclaude.models.customization import (
     CustomizationType,
     MemoryFileRef,
 )
-from lazyclaude.models.marketplace import MarketplacePlugin
+from lazyclaude.models.marketplace import PluginState
 from lazyclaude.models.settings import AppSettings
 from lazyclaude.models.view_mode import ViewMode
 from lazyclaude.services.config_path_resolver import ConfigPathResolver
 from lazyclaude.services.discovery import ConfigDiscoveryService
 from lazyclaude.services.filter import FilterService
-from lazyclaude.services.plugin_data_provider import PluginDataProvider
 from lazyclaude.services.settings import SettingsService
+from lazyclaude.services.unified_data_loader import UnifiedDataLoader
 from lazyclaude.themes import CUSTOM_THEMES
 from lazyclaude.widgets.app_footer import AppFooter
 from lazyclaude.widgets.combined_panel import CombinedPanel
@@ -113,7 +114,7 @@ class LazyClaude(
         self._view_mode: ViewMode = ViewMode.NORMAL
         self._marketplace_confirm: MarketplaceConfirm | None = None
         self._marketplace_source_input: MarketplaceSourceInput | None = None
-        self._plugin_data_provider: PluginDataProvider | None = None
+        self._unified_data_loader: UnifiedDataLoader | None = None
         self._app_footer: AppFooter | None = None
         self._help_visible = False
         self._last_focused_panel: TypePanel | None = None
@@ -123,18 +124,12 @@ class LazyClaude(
         self._combined_before_selector: bool = False
         self._config_path_resolver: ConfigPathResolver | None = None
         self._plugin_preview_mode: bool = False
-        self._previewing_plugin: MarketplacePlugin | None = None
+        self._previewing_plugin: PluginState | None = None
         self._plugin_customizations: list[Customization] = []
         self._settings_service = SettingsService()
         self._settings = AppSettings()
         self.debug_mode: bool = False
         self._open_marketplace_on_start: bool = open_marketplace
-
-    def _fatal_error(self) -> None:
-        """Print simple traceback instead of Rich's fancy one."""
-        self.bell()
-        traceback.print_exc()
-        self.exit()
 
     def compose(self) -> ComposeResult:
         """Compose the application layout."""
@@ -190,6 +185,26 @@ class LazyClaude(
         self._app_footer = AppFooter(id="app-footer")
         yield self._app_footer
 
+    def _handle_exception(self, error: Exception) -> None:
+        """Handle uncaught exceptions - override Textual's method."""
+        import logging
+
+        logger = logging.getLogger(__name__)
+
+        # Log to debug log when --debug is active
+        if self.debug_mode:
+            logger.error(f"[APP] UNCAUGHT EXCEPTION: {type(error).__name__}: {error}")
+            logger.error(f"[APP] Traceback:\n{traceback.format_exc()}")
+
+        # ALWAYS print to stderr (for fatal errors)
+        print(f"\n{'=' * 60}", file=sys.stderr)
+        print(f"UNCAUGHT EXCEPTION: {type(error).__name__}: {error}", file=sys.stderr)
+        print(f"{'=' * 60}", file=sys.stderr)
+        traceback.print_exc(file=sys.stderr)
+
+        # Call parent implementation to handle exit
+        super()._handle_exception(error)
+
     def on_mount(self) -> None:
         """Handle mount event - load customizations."""
         import logging
@@ -220,12 +235,13 @@ class LazyClaude(
         self._config_path_resolver = ConfigPathResolver(
             self._discovery_service._plugin_loader,
         )
-        self._plugin_data_provider = PluginDataProvider(
+        self._unified_data_loader = UnifiedDataLoader(
             user_config_path=self._discovery_service.user_config_path,
+            project_config_path=self._discovery_service.project_config_path,
             project_root=self._discovery_service.project_root,
         )
         if self._marketplace_view:
-            self._marketplace_view.set_provider(self._plugin_data_provider)
+            self._marketplace_view.set_loader(self._unified_data_loader)
         if self._marketplace_source_input:
             self._marketplace_source_input.set_suggestions(
                 self._settings.suggested_marketplaces

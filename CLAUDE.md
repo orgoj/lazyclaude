@@ -135,6 +135,18 @@ User Input → App (app.py) → TypePanel widgets → SelectionChanged message
 3. `Customization` objects are created with `ConfigLevel` (USER, PROJECT, PROJECT_LOCAL, PLUGIN)
 4. Selection changes emit `TypePanel.SelectionChanged` messages handled by `App` to update `MainPane`
 
+### Architectural Invariants
+
+**Single Source of Truth:**
+- CLI and TUI must use same PluginDataProvider for plugin data - never duplicate logic
+- If both interfaces need same data, create ONE shared service that both call
+- Duplication between CLI and TUI is unacceptable and will cause inconsistent behavior
+
+**Composition Pattern:**
+- Prefer wrapper classes over modifying existing services when adding functionality
+- Example: PluginDataProvider wraps PluginLoader + MarketplaceLoader
+- Preserves existing service contracts while adding new capabilities
+
 ### Widget Layout
 
 ```
@@ -295,6 +307,25 @@ Commands run in background workers (`@work(thread=True)`) to keep UI responsive.
 - One-time operations don't need helpers or abstractions
 - Don't add docstrings or comments to code you didn't change
 - Trust internal code and framework guarantees; validate only at system boundaries (user input, external APIs)
+
+**Working Directory Discipline (CRITICAL):**
+- `Path.cwd()` ONLY at application entry point (`__main__.py`) to resolve `--directory` argument
+- ALL downstream code must use absolute paths passed from entry point
+- Services MUST require explicit `project_config_path` parameter - no cwd fallbacks
+- NEVER use `cd` to change directories - use relative paths or subshells `(cd DIR && CMD)`
+- Rationale: Wrapper scripts that `cd` before running will break relative path assumptions
+
+**Test-Driven Development:**
+- Write failing tests first, then implementation, then verify tests pass
+- Verify test actually fails before implementing (prevents false positives)
+- For bug fixes: reproduce bug with test first, then fix, then verify test passes
+- Complex features: comprehensive test coverage required
+
+**Development Workflow:**
+- Complex tasks: use `superpowers:brainstorming` before implementation
+- Multi-step tasks: use `superpowers:writing-plans` for detailed planning
+- Execution: use `superpowers:subagent-driven-development` with review loops
+- Never auto-create PRs or merge without explicit user request - user controls git workflow
 
 **Documentation Updates**
 - Every feature change MUST include documentation updates

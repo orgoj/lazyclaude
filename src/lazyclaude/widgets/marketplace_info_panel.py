@@ -5,7 +5,7 @@ from textual.containers import VerticalScroll
 from textual.widget import Widget
 from textual.widgets import Static
 
-from lazyclaude.models.marketplace import Marketplace, MarketplacePlugin
+from lazyclaude.models.marketplace import MarketplaceState, PluginState
 
 
 class MarketplaceInfoPanel(Widget):
@@ -45,61 +45,62 @@ class MarketplaceInfoPanel(Widget):
 
     def __init__(self, *args, **kwargs) -> None:  # type: ignore[no-untyped-def]
         super().__init__(*args, **kwargs)
-        self._data: MarketplacePlugin | Marketplace | None = None
+        self._data: PluginState | MarketplaceState | None = None
 
     def compose(self) -> ComposeResult:
         """Create child widgets."""
         yield VerticalScroll()
 
-    def set_data(self, data: MarketplacePlugin | Marketplace | None) -> None:
+    def set_data(self, data: PluginState | MarketplaceState | None) -> None:
         """Update panel with selected item data."""
         self._data = data
         self._update_content()
 
     def _update_content(self) -> None:
         """Rebuild content based on current data."""
-        scroll = self.query_one(VerticalScroll)
+        # Guard against calling before widget is mounted
+        if not self.is_mounted:
+            return
+
+        try:
+            scroll = self.query_one(VerticalScroll)
+        except Exception:
+            # Widget not ready yet, will be called again
+            return
+
         scroll.remove_children()
 
         if not self._data:
             return
 
-        if isinstance(self._data, Marketplace):
+        if isinstance(self._data, MarketplaceState):
             self._render_marketplace_info(scroll, self._data)
-        elif isinstance(self._data, MarketplacePlugin):
+        elif isinstance(self._data, PluginState):
             self._render_plugin_info(scroll, self._data)
 
     def _render_marketplace_info(
-        self, scroll: VerticalScroll, marketplace: Marketplace
+        self, scroll: VerticalScroll, marketplace: MarketplaceState
     ) -> None:
         """Render marketplace metadata."""
         # Name
-        self._add_field(scroll, "Name", marketplace.entry.name)
+        self._add_field(scroll, "Name", marketplace.name)
 
         # Description (full, scrollable)
-        if marketplace.entry.description:
-            self._add_field(scroll, "Description", marketplace.entry.description)
+        if marketplace.description:
+            self._add_field(scroll, "Description", marketplace.description)
 
-        # Owner (flatten dict)
-        if marketplace.entry.owner and isinstance(marketplace.entry.owner, dict):
-            for key, value in marketplace.entry.owner.items():
+        # Author (flatten dict)
+        if marketplace.author and isinstance(marketplace.author, dict):
+            for key, value in marketplace.author.items():
                 if value:
-                    self._add_field(scroll, key.title(), str(value))
-
-        # Metadata (version, etc)
-        if marketplace.entry.metadata:
-            for key, value in marketplace.entry.metadata.items():
-                if key.lower() != "description":  # Skip duplicate description
                     self._add_field(scroll, key.title(), str(value))
 
         # Stats
         total = len(marketplace.plugins)
-        installed = sum(1 for p in marketplace.plugins if p.is_installed)
+        installed = sum(1 for p in marketplace.plugins if p.is_installed_anywhere)
         self._add_field(scroll, "Plugins", f"{installed}/{total} installed")
 
-    def _render_plugin_info(
-        self, scroll: VerticalScroll, plugin: MarketplacePlugin
-    ) -> None:
+    def _render_plugin_info(self, scroll: VerticalScroll, plugin: PluginState) -> None:
         """Render plugin metadata."""
         # Name
         self._add_field(scroll, "Name", plugin.name)
@@ -109,30 +110,18 @@ class MarketplaceInfoPanel(Widget):
             self._add_field(scroll, "Description", plugin.description)
 
         # Source
-        if plugin.source_raw:
-            if isinstance(plugin.source_raw, str):
-                # Relative path
-                self._add_field(scroll, "Source (Path)", plugin.source_raw)
-            elif isinstance(plugin.source_raw, dict):
-                source_type = plugin.source_raw.get("source", "")
-                if source_type == "github":
-                    repo = plugin.source_raw.get("repo", "")
-                    self._add_field(scroll, "Source (GitHub)", repo)
-                elif source_type == "url":
-                    url = plugin.source_raw.get("url", "")
-                    self._add_field(scroll, "Source (URL)", url)
-                else:
-                    self._add_field(scroll, "Source", str(plugin.source_raw))
+        if plugin.source:
+            from ..models.marketplace import extract_source_url
+
+            source_url = extract_source_url(plugin.source)
+            self._add_field(scroll, "Source", source_url)
 
         # Version
-        available_version = plugin.extra_metadata.get("version")
-        if plugin.installed_version:
-            version_str = f"{plugin.installed_version} (installed)"
-            if available_version:
-                version_str += f", {available_version} (available)"
-            self._add_field(scroll, "Version", version_str)
-        elif available_version:
-            self._add_field(scroll, "Version", f"{available_version} (available)")
+        installed_version = (
+            plugin.user.version or plugin.project.version or plugin.local.version
+        )
+        if installed_version:
+            self._add_field(scroll, "Version", f"{installed_version} (installed)")
 
         # Author (flatten dict)
         if plugin.author and isinstance(plugin.author, dict):
@@ -164,27 +153,8 @@ class MarketplaceInfoPanel(Widget):
             self._add_field(scroll, "Keywords", keywords_str)
 
         # Scope status
-        if plugin.scope_status:
-            scopes = []
-            for scope, status in plugin.scope_status.items():
-                icon = (
-                    "✓" if status == "enabled" else "✗" if status == "disabled" else "○"
-                )
-                scopes.append(f"{scope}: {icon}")
-            self._add_field(scroll, "Scopes", ", ".join(scopes))
-
-        # Other metadata (strict, tags, etc.)
-        for key, value in plugin.extra_metadata.items():
-            if key != "version":  # Already shown above
-                if isinstance(value, list):
-                    value_str = ", ".join(str(v) for v in value[:3])
-                    if len(value) > 3:
-                        value_str += f" ... ({len(value)} total)"
-                    self._add_field(scroll, key.title(), value_str)
-                elif isinstance(value, bool):
-                    self._add_field(scroll, key.title(), "Yes" if value else "No")
-                else:
-                    self._add_field(scroll, key.title(), str(value))
+        scopes_display = plugin.format_scope_display()
+        self._add_field(scroll, "Status", scopes_display)
 
     def _add_field(self, scroll: VerticalScroll, label: str, value: str) -> None:
         """Add a label:value field to the content."""

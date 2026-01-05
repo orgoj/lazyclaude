@@ -6,7 +6,7 @@ from textual.message import Message
 from textual.widget import Widget
 from textual.widgets import Static
 
-from lazyclaude.models.marketplace import Marketplace
+from lazyclaude.models.marketplace import MarketplaceState
 
 
 class MarketplaceConfirm(Widget):
@@ -49,7 +49,7 @@ class MarketplaceConfirm(Widget):
     class RemoveConfirmed(Message):
         """Emitted when remove is confirmed."""
 
-        def __init__(self, marketplace: Marketplace) -> None:
+        def __init__(self, marketplace: MarketplaceState) -> None:
             self.marketplace = marketplace
             super().__init__()
 
@@ -66,13 +66,13 @@ class MarketplaceConfirm(Widget):
     ) -> None:
         """Initialize MarketplaceConfirm."""
         super().__init__(name=name, id=id, classes=classes)
-        self._marketplace: Marketplace | None = None
+        self._marketplace: MarketplaceState | None = None
 
     def compose(self) -> ComposeResult:
         """Compose the confirmation bar."""
         yield Static("", id="prompt")
 
-    def show(self, marketplace: Marketplace) -> None:
+    def show(self, marketplace: MarketplaceState) -> None:
         """Show the confirmation bar and focus it."""
         self._marketplace = marketplace
         self._update_prompt(marketplace)
@@ -84,14 +84,14 @@ class MarketplaceConfirm(Widget):
         self.remove_class("visible")
         self._marketplace = None
 
-    def _update_prompt(self, marketplace: Marketplace) -> None:
+    def _update_prompt(self, marketplace: MarketplaceState) -> None:
         """Update the prompt text."""
         prompt_widget = self.query_one("#prompt", Static)
         warning_color = self.app.get_css_variables().get("warning", "yellow")
         plugin_count = len(marketplace.plugins)
         plugins_text = f" ({plugin_count} plugins)" if plugin_count > 0 else ""
         prompt_widget.update(
-            f'Remove marketplace [{warning_color}]"{marketplace.entry.name}"[/]{plugins_text}?\n'
+            f'Remove marketplace [{warning_color}]"{marketplace.name}"[/]{plugins_text}?\n'
             "\\[y] Yes  \\[n] No  \\[Esc] Cancel"
         )
 

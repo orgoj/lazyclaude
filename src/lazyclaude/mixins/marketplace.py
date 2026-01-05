@@ -17,7 +17,7 @@ from lazyclaude.models.customization import (
     CustomizationType,
     PluginInfo,
 )
-from lazyclaude.models.marketplace import MarketplacePlugin
+from lazyclaude.models.marketplace import PluginState
 from lazyclaude.models.view_mode import ViewMode
 from lazyclaude.services.opener import open_github_source, open_in_file_explorer
 from lazyclaude.widgets.marketplace_confirm import MarketplaceConfirm
@@ -46,7 +46,7 @@ class MarketplaceMixin:
     _marketplace_source_input: MarketplaceSourceInput | None
     _plugin_data_provider: "PluginDataProvider | None"
     _plugin_preview_mode: bool
-    _previewing_plugin: MarketplacePlugin | None
+    _previewing_plugin: PluginState | None
     _plugin_customizations: list[Customization]
     _search_query: str
     _discovery_service: "ConfigDiscoveryService"
@@ -66,19 +66,22 @@ class MarketplaceMixin:
         """Handle footer change from marketplace view."""
         self._update_footer()  # type: ignore[attr-defined]
 
-    def _enter_plugin_preview(self, plugin: MarketplacePlugin) -> None:
+    def _enter_plugin_preview(self, plugin: PluginState) -> None:
         """Enter plugin preview mode - show plugin's customizations in panels."""
         if not self._plugin_data_provider:
             self.notify("Plugin data provider not available", severity="error")  # type: ignore[attr-defined]
             return
 
-        plugin_dir = self._plugin_data_provider.get_plugin_source_dir(plugin)
+        plugin_dir = self._plugin_data_provider.get_plugin_source_dir(plugin)  # type: ignore[arg-type]
         if not plugin_dir or not plugin_dir.exists():
             # If source is a URL, open in browser instead of showing error
-            if plugin.source.startswith(("http://", "https://")):
+            from ..models.marketplace import extract_source_url
+
+            source_url = extract_source_url(plugin.source)
+            if source_url.startswith(("http://", "https://")):
                 import webbrowser
 
-                webbrowser.open(plugin.source)
+                webbrowser.open(source_url)
                 self.notify(  # type: ignore[attr-defined]
                     f"Opening {plugin.name} source in browser",
                     severity="information",
@@ -89,14 +92,16 @@ class MarketplaceMixin:
             return
 
         plugin_info = PluginInfo(
-            plugin_id=plugin.full_plugin_id,
+            plugin_id=plugin.plugin_id,
             short_name=plugin.name,
             version="preview",
             install_path=plugin_dir,
-            is_enabled=plugin.is_enabled,
+            is_enabled=plugin.effective_enabled,
         )
         self._plugin_customizations = self._discovery_service.discover_from_directory(
-            plugin_dir, plugin_info, marketplace_plugin=plugin
+            plugin_dir,
+            plugin_info,
+            marketplace_plugin=plugin,  # type: ignore[arg-type]
         )
         self._previewing_plugin = plugin
         self._plugin_preview_mode = True
@@ -112,10 +117,16 @@ class MarketplaceMixin:
         self._update_footer_actions()  # type: ignore[attr-defined]
         self.refresh_bindings()  # type: ignore[attr-defined]
         if self._status_panel:
-            if plugin.is_installed:
+            if plugin.is_installed_anywhere:
                 resolved_version = plugin_dir.name
             else:
-                resolved_version = plugin.extra_metadata.get("version", "dev")
+                # Get version from first available scope
+                resolved_version = (
+                    plugin.user.version
+                    or plugin.project.version
+                    or plugin.local.version
+                    or "dev"
+                )
             self._status_panel.config_path = (
                 f"Preview: {plugin.name} [dim]({resolved_version})[/]"
             )
@@ -367,12 +378,18 @@ class MarketplaceMixin:
         """Handle opening plugin folder from marketplace modal."""
         plugin = message.plugin
 
-        if not plugin.install_path or not plugin.install_path.exists():
+        # Get install_path from first available scope
+        install_path = (
+            plugin.user.install_path
+            or plugin.project.install_path
+            or plugin.local.install_path
+        )
+        if not install_path or not install_path.exists():
             self.notify("Plugin folder not found", severity="error")  # type: ignore[attr-defined]
             return
 
         editor = os.environ.get("EDITOR", "vi")
-        cmd_str = shlex.join([editor, str(plugin.install_path)])
+        cmd_str = shlex.join([editor, str(install_path)])
         subprocess.Popen(cmd_str, shell=True)
 
     def on_marketplace_view_open_marketplace_folder(
@@ -380,7 +397,7 @@ class MarketplaceMixin:
     ) -> None:
         """Handle opening marketplace install directory."""
         marketplace = message.marketplace
-        install_path = marketplace.entry.install_location
+        install_path = marketplace.install_location
 
         if not install_path or not install_path.exists():
             self.notify("Marketplace folder not found", severity="error")  # type: ignore[attr-defined]
@@ -396,61 +413,83 @@ class MarketplaceMixin:
         """Handle opening plugin source location from marketplace modal."""
         plugin = message.plugin
         marketplace = message.marketplace
-        source_type = marketplace.entry.source.source_type
 
-        if source_type == "directory":
-            if plugin.is_installed and plugin.install_path:
-                path = plugin.install_path
+        # Determine source type from source_url
+        is_github = (
+            "github.com" in marketplace.source_url if marketplace.source_url else False
+        )
+
+        if not is_github:  # directory source
+            # Get install_path from first available scope
+            install_path = (
+                plugin.user.install_path
+                or plugin.project.install_path
+                or plugin.local.install_path
+            )
+            if plugin.is_installed_anywhere and install_path:
+                path = install_path
             else:
                 # Skip if source is a full URL (not a local path)
-                if plugin.source.startswith(("http://", "https://")):
+                from ..models.marketplace import extract_source_url
+
+                source_url = extract_source_url(plugin.source)
+                if source_url.startswith(("http://", "https://")):
                     self.notify(  # type: ignore[attr-defined]
-                        f"Cannot open file explorer for remote URL: {plugin.source}",
+                        f"Cannot open file explorer for remote URL: {source_url}",
                         severity="warning",
                     )
                     return
-                path = (marketplace.entry.install_location / plugin.source).resolve()
+                if not marketplace.install_location:
+                    self.notify("Marketplace not installed", severity="warning")  # type: ignore[attr-defined]
+                    return
+                path = (marketplace.install_location / source_url).resolve()
 
             success, error = open_in_file_explorer(path)
             if not success:
                 self.notify(error or "Failed to open", severity="warning")  # type: ignore[attr-defined]
-        elif source_type == "github":
-            repo = marketplace.entry.source.repo
+        else:  # github source
+            repo = marketplace.source_url
             if repo:
-                open_github_source(repo, plugin.source)
+                from ..models.marketplace import extract_source_url
+
+                source_url = extract_source_url(plugin.source)
+                open_github_source(repo, source_url)
             else:
                 self.notify("GitHub repository not configured", severity="warning")  # type: ignore[attr-defined]
-        else:
-            self.notify(f"Unknown source type: {source_type}", severity="warning")  # type: ignore[attr-defined]
 
     def on_marketplace_view_open_marketplace_source(
         self, message: MarketplaceView.OpenMarketplaceSource
     ) -> None:
         """Handle opening marketplace source location."""
         marketplace = message.marketplace
-        source_type = marketplace.entry.source.source_type
 
-        if source_type == "directory":
-            success, error = open_in_file_explorer(marketplace.entry.install_location)
+        # Determine source type from source_url
+        is_github = (
+            "github.com" in marketplace.source_url if marketplace.source_url else False
+        )
+
+        if not is_github:  # directory source
+            if not marketplace.install_location:
+                self.notify("Marketplace not installed", severity="warning")  # type: ignore[attr-defined]
+                return
+            success, error = open_in_file_explorer(marketplace.install_location)
             if not success:
                 self.notify(error or "Failed to open", severity="warning")  # type: ignore[attr-defined]
-        elif source_type == "github":
-            repo = marketplace.entry.source.repo
+        else:  # github source
+            repo = marketplace.source_url
             if repo:
                 open_github_source(repo)
             else:
                 self.notify("GitHub repository not configured", severity="warning")  # type: ignore[attr-defined]
-        else:
-            self.notify(f"Unknown source type: {source_type}", severity="warning")  # type: ignore[attr-defined]
 
     def on_marketplace_view_marketplace_update(
         self, message: MarketplaceView.MarketplaceUpdate
     ) -> None:
         """Handle marketplace update request."""
         marketplace = message.marketplace
-        self.notify(f"Updating {marketplace.entry.name}...", severity="information")  # type: ignore[attr-defined]
-        cmd = ["claude", "plugin", "marketplace", "update", marketplace.entry.name]
-        self._run_plugin_command(cmd, f"Updated {marketplace.entry.name}")
+        self.notify(f"Updating {marketplace.name}...", severity="information")  # type: ignore[attr-defined]
+        cmd = ["claude", "plugin", "marketplace", "update", marketplace.name]
+        self._run_plugin_command(cmd, f"Updated {marketplace.name}")
 
     def on_marketplace_view_marketplace_add(
         self, message: MarketplaceView.MarketplaceAdd
@@ -467,12 +506,14 @@ class MarketplaceMixin:
         """Handle plugin update request - update in all installed scopes."""
         plugin = message.plugin
 
-        # Find installed scopes (enabled or disabled means installed)
-        installed_scopes = [
-            scope
-            for scope, status in plugin.scope_status.items()
-            if status in ("enabled", "disabled")
-        ]
+        # Find installed scopes
+        installed_scopes = []
+        if plugin.user.installed:
+            installed_scopes.append("user")
+        if plugin.project.installed:
+            installed_scopes.append("project")
+        if plugin.local.installed:
+            installed_scopes.append("local")
 
         if not installed_scopes:
             self.notify("Plugin not installed in any scope", severity="warning")  # type: ignore[attr-defined]
@@ -487,7 +528,7 @@ class MarketplaceMixin:
         # Build commands for each installed scope
         commands = [
             (
-                ["claude", "plugin", "update", "-s", scope, plugin.full_plugin_id],
+                ["claude", "plugin", "update", "-s", scope, plugin.plugin_id],
                 f"Updated {plugin.name} ({scope})",
             )
             for scope in installed_scopes
@@ -511,7 +552,7 @@ class MarketplaceMixin:
             # Use fallback method for enable/disable (handles scope overrides)
             if action in ("enable", "disable"):
                 self._run_enable_disable_with_fallback(
-                    plugin.full_plugin_id, scope, action, success_msg
+                    plugin.plugin_id, scope, action, success_msg
                 )
             else:
                 cmd = self._build_plugin_command_with_scope(plugin, scope, action)
@@ -521,10 +562,10 @@ class MarketplaceMixin:
             self.notify(f"Error preparing plugin command: {e}", severity="error")  # type: ignore[attr-defined]
 
     def _build_plugin_command_with_scope(
-        self, plugin: MarketplacePlugin, scope: str, action: str
+        self, plugin: PluginState, scope: str, action: str
     ) -> list[str]:
         """Build claude CLI command with scope parameter."""
-        plugin_id = plugin.full_plugin_id
+        plugin_id = plugin.plugin_id
 
         if action == "install":
             cmd = ["claude", "plugin", "install", "-s", scope, plugin_id]
@@ -559,9 +600,9 @@ class MarketplaceMixin:
     ) -> None:
         """Handle confirmed marketplace removal."""
         marketplace = message.marketplace
-        self.notify(f"Removing {marketplace.entry.name}...", severity="information")  # type: ignore[attr-defined]
-        cmd = ["claude", "plugin", "marketplace", "remove", marketplace.entry.name]
-        self._run_plugin_command(cmd, f"Removed {marketplace.entry.name}")
+        self.notify(f"Removing {marketplace.name}...", severity="information")  # type: ignore[attr-defined]
+        cmd = ["claude", "plugin", "marketplace", "remove", marketplace.name]
+        self._run_plugin_command(cmd, f"Removed {marketplace.name}")
         if self._marketplace_view:
             self._marketplace_view.call_after_refresh(  # type: ignore[attr-defined]
                 self._marketplace_view.focus_tree

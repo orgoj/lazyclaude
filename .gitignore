@@ -71,3 +71,5 @@ _plans/
 
 # hatch-vcs generated version file
 src/lazyclaude/_version.py
+
+/.claude/diary/recovery/

@@ -8,7 +8,7 @@ from textual.message import Message
 from textual.widget import Widget
 from textual.widgets import Static
 
-from lazyclaude.models.marketplace import MarketplacePlugin
+from lazyclaude.models.marketplace import PluginState
 
 logger = logging.getLogger(__name__)
 
@@ -61,7 +61,7 @@ class ScopeSelector(Widget):
     class ScopeSelected(Message):
         """Emitted when a scope is selected."""
 
-        def __init__(self, plugin: MarketplacePlugin, scope: str, action: str) -> None:
+        def __init__(self, plugin: PluginState, scope: str, action: str) -> None:
             self.plugin = plugin
             self.scope = scope
             self.action = action
@@ -80,7 +80,7 @@ class ScopeSelector(Widget):
     ) -> None:
         """Initialize ScopeSelector."""
         super().__init__(name=name, id=id, classes=classes)
-        self._plugin: MarketplacePlugin | None = None
+        self._plugin: PluginState | None = None
         self._scope_status: dict[str, str] = {}
         self._action: str = "enable"
 
@@ -90,12 +90,12 @@ class ScopeSelector(Widget):
 
     def show(
         self,
-        plugin: MarketplacePlugin,
+        plugin: PluginState,
         scope_status: dict[str, str],
         action: str = "enable",
     ) -> None:
         """Show the scope selector and focus it."""
-        logger.debug(f"[SCOPE SELECTOR] {action} {plugin.full_plugin_id}")
+        logger.debug(f"[SCOPE SELECTOR] {action} {plugin.plugin_id}")
         self._plugin = plugin
         self._scope_status = scope_status
         self._action = action
@@ -154,7 +154,7 @@ class ScopeSelector(Widget):
         plugin = self._plugin
         action = self._action
         self.hide()
-        logger.debug(f"[SCOPE SELECTOR] -> {action} {plugin.full_plugin_id} @ {scope}")
+        logger.debug(f"[SCOPE SELECTOR] -> {action} {plugin.plugin_id} @ {scope}")
         self.post_message(self.ScopeSelected(plugin, scope, action))
 
     def _show_warning(self, message: str) -> None:

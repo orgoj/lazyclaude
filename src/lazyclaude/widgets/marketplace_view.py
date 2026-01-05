@@ -11,8 +11,11 @@ from textual.message import Message
 from textual.widget import Widget
 from textual.widgets import Tree
 
-from lazyclaude.models.marketplace import Marketplace, MarketplacePlugin
-from lazyclaude.services.plugin_data_provider import PluginDataProvider
+from lazyclaude.models.marketplace import (
+    MarketplaceState,
+    PluginState,
+)
+from lazyclaude.services.unified_data_loader import UnifiedDataLoader
 from lazyclaude.widgets.filter_input import FilterInput
 from lazyclaude.widgets.helpers.rendering import format_keybinding
 from lazyclaude.widgets.marketplace_info_panel import MarketplaceInfoPanel
@@ -30,7 +33,7 @@ class MarketplaceView(Widget):
         Binding("E", "enable_plugin", "Enable", show=False),
         Binding("D", "disable_plugin", "Disable", show=False),
         Binding("U", "uninstall", "Uninstall", show=False),
-        Binding("A", "add_marketplace", "Add Marketplace", show=False),
+        Binding("A", "add_marketplace", "Add MarketplaceState", show=False),
         # Lowercase bindings
         Binding("i", "toggle_installed_filter", "Installed Only", show=False),
         Binding("n", "toggle_enabled_filter", "Enabled Only", show=False),
@@ -96,21 +99,21 @@ class MarketplaceView(Widget):
     class PluginUninstall(Message):
         """Emitted when a plugin uninstall is requested."""
 
-        def __init__(self, plugin: MarketplacePlugin) -> None:
+        def __init__(self, plugin: PluginState) -> None:
             self.plugin = plugin
             super().__init__()
 
     class OpenPluginFolder(Message):
         """Emitted when user requests to open plugin folder."""
 
-        def __init__(self, plugin: MarketplacePlugin) -> None:
+        def __init__(self, plugin: PluginState) -> None:
             self.plugin = plugin
             super().__init__()
 
     class OpenPluginSource(Message):
         """Emitted when user requests to open plugin source location."""
 
-        def __init__(self, plugin: MarketplacePlugin, marketplace: Marketplace) -> None:
+        def __init__(self, plugin: PluginState, marketplace: MarketplaceState) -> None:
             self.plugin = plugin
             self.marketplace = marketplace
             super().__init__()
@@ -118,21 +121,21 @@ class MarketplaceView(Widget):
     class OpenMarketplaceFolder(Message):
         """Emitted when user requests to open marketplace folder."""
 
-        def __init__(self, marketplace: Marketplace) -> None:
+        def __init__(self, marketplace: MarketplaceState) -> None:
             self.marketplace = marketplace
             super().__init__()
 
     class OpenMarketplaceSource(Message):
         """Emitted when user requests to open marketplace source location."""
 
-        def __init__(self, marketplace: Marketplace) -> None:
+        def __init__(self, marketplace: MarketplaceState) -> None:
             self.marketplace = marketplace
             super().__init__()
 
     class MarketplaceUpdate(Message):
         """Emitted when user requests to update a marketplace."""
 
-        def __init__(self, marketplace: Marketplace) -> None:
+        def __init__(self, marketplace: MarketplaceState) -> None:
             self.marketplace = marketplace
             super().__init__()
 
@@ -146,21 +149,21 @@ class MarketplaceView(Widget):
     class PluginPreview(Message):
         """Emitted when user requests to preview a plugin."""
 
-        def __init__(self, plugin: MarketplacePlugin) -> None:
+        def __init__(self, plugin: PluginState) -> None:
             self.plugin = plugin
             super().__init__()
 
     class PluginUpdate(Message):
         """Emitted when user requests to update a plugin."""
 
-        def __init__(self, plugin: MarketplacePlugin) -> None:
+        def __init__(self, plugin: PluginState) -> None:
             self.plugin = plugin
             super().__init__()
 
     class ScopeSelected(Message):
         """Emitted when user selects a scope for plugin action."""
 
-        def __init__(self, plugin: MarketplacePlugin, scope: str, action: str) -> None:
+        def __init__(self, plugin: PluginState, scope: str, action: str) -> None:
             self.plugin = plugin
             self.scope = scope
             self.action = action
@@ -169,7 +172,7 @@ class MarketplaceView(Widget):
     class MarketplaceRemove(Message):
         """Emitted when user requests to remove a marketplace."""
 
-        def __init__(self, marketplace: Marketplace) -> None:
+        def __init__(self, marketplace: MarketplaceState) -> None:
             self.marketplace = marketplace
             super().__init__()
 
@@ -190,10 +193,10 @@ class MarketplaceView(Widget):
         classes: str | None = None,
     ) -> None:
         super().__init__(name=name, id=id, classes=classes)
-        self._provider: PluginDataProvider | None = None
-        self._marketplaces: list[Marketplace] = []
+        self._loader: UnifiedDataLoader | None = None
+        self._marketplaces: list[MarketplaceState] = []
         self._marketplace_order: list[str] = []
-        self._tree: Tree[MarketplacePlugin | Marketplace | None] | None = None
+        self._tree: Tree[PluginState | MarketplaceState | None] | None = None
         self._filter_query: str = ""
         self._filter_input: FilterInput | None = None
         self._scope_selector: ScopeSelector | None = None
@@ -204,11 +207,11 @@ class MarketplaceView(Widget):
         self._collapsed_marketplaces: set[str] = (
             set()
         )  # Track collapsed, default=expanded
-        self._selected_data: MarketplacePlugin | Marketplace | None = None
+        self._selected_data: PluginState | MarketplaceState | None = None
 
     def compose(self) -> ComposeResult:
-        tree: Tree[MarketplacePlugin | Marketplace | None] = Tree(
-            "Marketplace Browser", id="marketplace-tree"
+        tree: Tree[PluginState | MarketplaceState | None] = Tree(
+            "MarketplaceState Browser", id="marketplace-tree"
         )
         tree.show_root = False
         self._tree = tree
@@ -221,7 +224,7 @@ class MarketplaceView(Widget):
         yield self._scope_selector
 
     def on_tree_node_highlighted(
-        self, event: Tree.NodeHighlighted[MarketplacePlugin | Marketplace | None]
+        self, event: Tree.NodeHighlighted[PluginState | MarketplaceState | None]
     ) -> None:
         """Update selection and info panel."""
         self._selected_data = event.node.data
@@ -244,20 +247,40 @@ class MarketplaceView(Widget):
         sep = "[dim]|[/]"
         nav = f"{installed_filter}  {enabled_filter}  {search_filter}  [bold]L[/] Expand  [bold]H[/] Collapse"
 
-        if isinstance(self._selected_data, MarketplacePlugin):
+        if isinstance(self._selected_data, PluginState):
             view = "[bold]o[/] Open  [bold]e[/] Edit  [bold]p[/] Preview"
             actions = "[bold]A[/] Add  [bold]I[/] Install  [bold]E[/] Enable  [bold]D[/] Disable  [bold]u[/] Update  [bold]U[/] Remove"
             return f"{view}  {sep}  {actions}  {sep}  {nav}"
-        elif isinstance(self._selected_data, Marketplace):
+        elif isinstance(self._selected_data, MarketplaceState):
             view = "[bold]o[/] Open  [bold]e[/] Edit"
             actions = "[bold]A[/] Add  [bold]u[/] Update  [bold]U[/] Remove"
             return f"{view}  {sep}  {actions}  {sep}  {nav}"
         else:
             return f"[bold]A[/] Add  {sep}  {nav}"
 
-    def set_provider(self, provider: PluginDataProvider) -> None:
-        """Set the plugin data provider."""
-        self._provider = provider
+    @staticmethod
+    def _plugin_to_scope_status(plugin: PluginState) -> dict[str, str]:
+        """Convert PluginState to scope_status dict for ScopeSelector."""
+        scope_status: dict[str, str] = {}
+        for scope_name in ["user", "project", "local"]:
+            scope = getattr(plugin, scope_name)
+            if scope.installed:
+                if scope.enabled is False:
+                    scope_status[scope_name] = "disabled"
+                else:
+                    scope_status[scope_name] = "enabled"
+            elif scope.enabled is not None:
+                if scope.enabled:
+                    scope_status[scope_name] = "override_enabled"
+                else:
+                    scope_status[scope_name] = "override_disabled"
+            else:
+                scope_status[scope_name] = "not_installed"
+        return scope_status
+
+    def set_loader(self, loader: UnifiedDataLoader) -> None:
+        """Set the unified data loader."""
+        self._loader = loader
 
     def show(self, preserve_state: bool = False, auto_collapse: bool = True) -> None:
         """Show the modal and load marketplace data."""
@@ -302,21 +325,23 @@ class MarketplaceView(Widget):
                 self._filter_input.hide()
 
     def _load_data(self) -> None:
-        """Load marketplace data from the provider."""
-        if self._provider:
-            marketplaces = self._provider.get_marketplaces()
+        """Load marketplace data from the loader."""
+        if self._loader:
+            marketplace_states = self._loader.load_marketplace_states()
             if not self._marketplace_order:
-                marketplaces.sort(
-                    key=lambda m: sum(1 for p in m.plugins if p.is_installed),
+                marketplace_states.sort(
+                    key=lambda m: sum(
+                        1 for p in m.plugins if p.is_accessible_in_current_project
+                    ),
                     reverse=True,
                 )
-                self._marketplace_order = [m.entry.name for m in marketplaces]
+                self._marketplace_order = [m.name for m in marketplace_states]
             else:
                 order_map = {name: i for i, name in enumerate(self._marketplace_order)}
-                marketplaces.sort(
-                    key=lambda m: order_map.get(m.entry.name, len(order_map))
+                marketplace_states.sort(
+                    key=lambda m: order_map.get(m.name, len(order_map))
                 )
-            self._marketplaces = marketplaces
+            self._marketplaces = marketplace_states
         else:
             self._marketplaces = []
 
@@ -327,8 +352,8 @@ class MarketplaceView(Widget):
 
         # Update persistent collapsed state from current tree
         for node in self._tree.root.children:
-            if isinstance(node.data, Marketplace):
-                name = node.data.entry.name
+            if isinstance(node.data, MarketplaceState):
+                name = node.data.name
                 if node.is_expanded:
                     self._collapsed_marketplaces.discard(name)
                 else:
@@ -353,22 +378,19 @@ class MarketplaceView(Widget):
             mp_label = self._render_marketplace_label(marketplace)
             mp_node = self._tree.root.add(mp_label, data=marketplace)
 
-            if marketplace.error:
-                mp_node.add_leaf(f"[red]Error: {marketplace.error}[/]")
-            else:
-                for plugin in marketplace.plugins:
-                    plugin_label = self._render_plugin_label(plugin)
-                    mp_node.add_leaf(plugin_label, data=plugin)
+            for plugin in marketplace.plugins:
+                plugin_label = self._render_plugin_label(plugin)
+                mp_node.add_leaf(plugin_label, data=plugin)
 
             # Restore state: collapsed if in set, otherwise expanded (default)
-            if marketplace.entry.name in self._collapsed_marketplaces:
+            if marketplace.name in self._collapsed_marketplaces:
                 mp_node.collapse()
             else:
                 mp_node.expand()
 
-    def _get_filtered_marketplaces(self) -> list[Marketplace]:
-        """Get filtered marketplaces using unified provider."""
-        if not self._provider:
+    def _get_filtered_marketplaces(self) -> list[MarketplaceState]:
+        """Get filtered marketplaces based on current filters."""
+        if not self._loader:
             return []
 
         if (
@@ -378,11 +400,33 @@ class MarketplaceView(Widget):
         ):
             return self._marketplaces
 
-        return self._provider.get_filtered_marketplaces(
-            installed_only=self._installed_only_filter,
-            enabled_only=self._enabled_only_filter,
-            query=self._filter_query or None,
-        )
+        # Manual filtering
+        result = self._marketplaces
+        filtered_marketplaces: list[MarketplaceState] = []
+        for mp in result:
+            filtered_plugins = mp.plugins
+
+            if self._installed_only_filter:
+                filtered_plugins = [
+                    p for p in filtered_plugins if p.is_installed_anywhere
+                ]
+
+            if self._enabled_only_filter:
+                filtered_plugins = [p for p in filtered_plugins if p.effective_enabled]
+
+            if self._filter_query:
+                query_lower = self._filter_query.lower()
+                filtered_plugins = [
+                    p
+                    for p in filtered_plugins
+                    if query_lower in p.name.lower()
+                    or query_lower in (p.description or "").lower()
+                ]
+
+            if filtered_plugins:
+                filtered_marketplaces.append(replace(mp, plugins=filtered_plugins))
+
+        return filtered_marketplaces
 
     @staticmethod
     def _is_semver(version: str | None) -> bool:
@@ -409,62 +453,33 @@ class MarketplaceView(Widget):
         except ValueError:
             return False
 
-    def _render_marketplace_label(self, marketplace: Marketplace) -> str:
+    def _render_marketplace_label(self, marketplace: MarketplaceState) -> str:
         """Render a marketplace node label."""
         total = len(marketplace.plugins)
-        installed = sum(1 for p in marketplace.plugins if p.is_installed)
+        installed = sum(1 for p in marketplace.plugins if p.is_installed_anywhere)
 
-        source_type = marketplace.entry.source.source_type
-        source_info = ""
-        if source_type == "github" and marketplace.entry.source.repo:
-            source_info = f" [dim]({marketplace.entry.source.repo})[/]"
-        elif source_type == "directory" and marketplace.entry.source.path:
-            source_info = f" [dim]({marketplace.entry.source.path})[/]"
+        # Add description if available
+        desc_part = f" - {marketplace.description}" if marketplace.description else ""
 
-        return f"[bold]{marketplace.entry.name}[/] [{installed}/{total}]{source_info}"
+        source_info = (
+            f" [dim]({marketplace.source_url})[/]" if marketplace.source_url else ""
+        )
 
-    def _render_plugin_label(self, plugin: MarketplacePlugin) -> str:
+        return (
+            f"[bold]{marketplace.name}[/] [{installed}/{total}]{desc_part}{source_info}"
+        )
+
+    def _render_plugin_label(self, plugin: PluginState) -> str:
         """Render a plugin node label."""
-        # Collect scopes by status
-        # Status values: enabled, disabled, override_enabled, override_disabled, not_installed
-        installed_scopes: list[str] = []
-        enabled_scopes: list[str] = []
-        disabled_scopes: list[str] = []
+        # Use unified format_scope_display: Ie/Id/e/d/-
+        status_display = plugin.format_scope_display()
+        status_icon = f"[{status_display}]" if plugin.is_installed_anywhere else "[ ]"
 
-        for scope in ["user", "project", "local"]:
-            status = plugin.scope_status.get(scope, "not_installed")
-            # Only "enabled" and "disabled" mean actually installed in that scope
-            if status in ("enabled", "disabled"):
-                installed_scopes.append(scope[0])  # u, p, l
-            # Enabled includes actual enabled + override_enabled
-            if status in ("enabled", "override_enabled"):
-                enabled_scopes.append(scope[0])
-            # Disabled includes actual disabled + override_disabled
-            elif status in ("disabled", "override_disabled"):
-                disabled_scopes.append(scope[0])
-
-        if not installed_scopes:
-            status_icon = "[ ]"
-        else:
-            # Build [I:xx E:xx D:xx] format, skip empty sections
-            parts = [f"I:{''.join(installed_scopes)}"]
-            if enabled_scopes:
-                parts.append(f"E:{''.join(enabled_scopes)}")
-            if disabled_scopes:
-                parts.append(f"D:{''.join(disabled_scopes)}")
-            status_icon = f"[{' '.join(parts)}]"
-
+        # Get version from first available scope
+        version = plugin.user.version or plugin.project.version or plugin.local.version
         version_display = ""
-        if plugin.is_installed and plugin.installed_version:
-            installed_ver = plugin.installed_version
-            available_ver = plugin.extra_metadata.get("version")
-
-            if available_ver and self._has_update(installed_ver, available_ver):
-                version_display = (
-                    f" [dim]({installed_ver} → {available_ver})[/] [cyan]↑[/]"
-                )
-            else:
-                version_display = f" [dim]({installed_ver})[/]"
+        if version:
+            version_display = f" [dim]({version})[/]"
 
         desc = f" - {plugin.description}" if plugin.description else ""
         max_desc_len = 80
@@ -498,10 +513,10 @@ class MarketplaceView(Widget):
         selected_id: str | None = None
         if self._tree and self._tree.cursor_node:
             data = self._tree.cursor_node.data
-            if isinstance(data, MarketplacePlugin):
-                selected_id = data.full_plugin_id
-            elif isinstance(data, Marketplace):
-                selected_id = f"marketplace:{data.entry.name}"
+            if isinstance(data, PluginState):
+                selected_id = data.plugin_id
+            elif isinstance(data, MarketplaceState):
+                selected_id = f"marketplace:{data.name}"
 
         self._build_tree()
 
@@ -553,10 +568,12 @@ class MarketplaceView(Widget):
             return
 
         data = node.data
-        if isinstance(data, MarketplacePlugin) and self._scope_selector:
+        if isinstance(data, PluginState) and self._scope_selector:
             # Show scope selector for uninstall
-            self._scope_selector.show(data, data.scope_status, action="uninstall")
-        elif isinstance(data, Marketplace):
+            self._scope_selector.show(
+                data, self._plugin_to_scope_status(data), action="uninstall"
+            )
+        elif isinstance(data, MarketplaceState):
             # Remove marketplace
             self.post_message(self.MarketplaceRemove(data))
 
@@ -570,8 +587,10 @@ class MarketplaceView(Widget):
             return
 
         data = node.data
-        if isinstance(data, MarketplacePlugin) and self._scope_selector:
-            self._scope_selector.show(data, data.scope_status, action="install")
+        if isinstance(data, PluginState) and self._scope_selector:
+            self._scope_selector.show(
+                data, self._plugin_to_scope_status(data), action="install"
+            )
 
     def action_enable_plugin(self) -> None:
         """Enable the selected plugin with scope selector."""
@@ -583,8 +602,10 @@ class MarketplaceView(Widget):
             return
 
         data = node.data
-        if isinstance(data, MarketplacePlugin) and self._scope_selector:
-            self._scope_selector.show(data, data.scope_status, action="enable")
+        if isinstance(data, PluginState) and self._scope_selector:
+            self._scope_selector.show(
+                data, self._plugin_to_scope_status(data), action="enable"
+            )
 
     def action_disable_plugin(self) -> None:
         """Disable the selected plugin with scope selector."""
@@ -596,8 +617,10 @@ class MarketplaceView(Widget):
             return
 
         data = node.data
-        if isinstance(data, MarketplacePlugin) and self._scope_selector:
-            self._scope_selector.show(data, data.scope_status, action="disable")
+        if isinstance(data, PluginState) and self._scope_selector:
+            self._scope_selector.show(
+                data, self._plugin_to_scope_status(data), action="disable"
+            )
 
     def action_open_plugin_folder(self) -> None:
         """Open the selected marketplace or plugin folder."""
@@ -609,35 +632,43 @@ class MarketplaceView(Widget):
             return
 
         data = node.data
-        if isinstance(data, Marketplace):
+        if isinstance(data, MarketplaceState):
             # Open marketplace install directory
             self.post_message(self.OpenMarketplaceFolder(data))
-        elif isinstance(data, MarketplacePlugin):
+        elif isinstance(data, PluginState):
             # Open plugin folder
-            if data.is_installed:
+            if data.is_installed_anywhere:
                 # Installed plugin - open install location
                 self.post_message(self.OpenPluginFolder(data))
-            elif isinstance(data.source_raw, str):
-                # Uninstalled plugin with path source - open in marketplace
-                # Source is already downloaded in marketplace repo
+            elif data.source:
+                from ..models.marketplace import extract_source_url
 
-                # Find marketplace for this plugin
-                for marketplace in self._marketplaces:
-                    if marketplace.entry.name == data.marketplace_name:
-                        source_path = (
-                            marketplace.entry.install_location / data.source_raw
-                        )
-                        if source_path.exists():
-                            editor = os.environ.get("EDITOR", "vi")
-                            cmd_str = shlex.join([editor, str(source_path)])
-                            subprocess.Popen(cmd_str, shell=True)
-                            return
-                self.app.notify(
-                    "Plugin source not found in marketplace", severity="error"
-                )
-            else:
-                # Uninstalled plugin with remote source (github/url)
-                self.app.notify("Plugin must be installed to edit", severity="warning")
+                source_url = extract_source_url(data.source)
+                if "://" not in source_url:
+                    # Uninstalled plugin with path source - open in marketplace
+                    # Source is already downloaded in marketplace repo
+
+                    # Find marketplace for this plugin
+                    for marketplace in self._marketplaces:
+                        if (
+                            marketplace.name == data.marketplace_name
+                            and marketplace.install_location
+                        ):
+                            source_url_path = extract_source_url(data.source)
+                            source_path = marketplace.install_location / source_url_path
+                            if source_path.exists():
+                                editor = os.environ.get("EDITOR", "vi")
+                                cmd_str = shlex.join([editor, str(source_path)])
+                                subprocess.Popen(cmd_str, shell=True)
+                                return
+                    self.app.notify(
+                        "Plugin source not found in marketplace", severity="error"
+                    )
+                else:
+                    # Uninstalled plugin with remote source (github/url)
+                    self.app.notify(
+                        "Plugin must be installed to edit", severity="warning"
+                    )
 
     def action_noop(self) -> None:
         """No-op action to prevent default behavior."""
@@ -653,11 +684,11 @@ class MarketplaceView(Widget):
             return
 
         data = node.data
-        if isinstance(data, Marketplace):
+        if isinstance(data, MarketplaceState):
             self.post_message(self.OpenMarketplaceSource(data))
-        elif isinstance(data, MarketplacePlugin):
+        elif isinstance(data, PluginState):
             parent = node.parent
-            if parent and isinstance(parent.data, Marketplace):
+            if parent and isinstance(parent.data, MarketplaceState):
                 self.post_message(self.OpenPluginSource(data, parent.data))
 
     def action_update_marketplace(self) -> None:
@@ -670,9 +701,9 @@ class MarketplaceView(Widget):
             return
 
         data = node.data
-        if isinstance(data, Marketplace):
+        if isinstance(data, MarketplaceState):
             self.post_message(self.MarketplaceUpdate(data))
-        elif isinstance(data, MarketplacePlugin) and data.is_installed:
+        elif isinstance(data, PluginState) and data.is_installed_anywhere:
             self.post_message(self.PluginUpdate(data))
 
     def action_preview_plugin(self) -> None:
@@ -685,30 +716,35 @@ class MarketplaceView(Widget):
             return
 
         data = node.data
-        if isinstance(data, MarketplacePlugin):
-            if data.is_installed:
+        if isinstance(data, PluginState):
+            if data.is_installed_anywhere:
                 self.post_message(self.PluginPreview(data))
-            elif isinstance(data.source_raw, str):
-                # Uninstalled plugin with path source - preview from marketplace
-                # Find marketplace for this plugin
-                for marketplace in self._marketplaces:
-                    if marketplace.entry.name == data.marketplace_name:
-                        source_path = (
-                            marketplace.entry.install_location / data.source_raw
-                        )
-                        if source_path.exists():
-                            # Create temporary plugin with install_path for preview
-                            preview_plugin = replace(data, install_path=source_path)
-                            self.post_message(self.PluginPreview(preview_plugin))
-                            return
-                self.app.notify(
-                    "Plugin source not found in marketplace", severity="error"
-                )
-            else:
-                self.app.notify(
-                    "Plugin must be installed to preview", severity="warning"
-                )
-        elif isinstance(data, Marketplace):
+            elif data.source:
+                from ..models.marketplace import extract_source_url
+
+                source_url = extract_source_url(data.source)
+                if "://" not in source_url:
+                    # Uninstalled plugin with path source - preview from marketplace
+                    # Find marketplace for this plugin
+                    for marketplace in self._marketplaces:
+                        if (
+                            marketplace.name == data.marketplace_name
+                            and marketplace.install_location
+                        ):
+                            source_url_path = extract_source_url(data.source)
+                            source_path = marketplace.install_location / source_url_path
+                            if source_path.exists():
+                                # Plugin source exists in marketplace - preview it
+                                self.post_message(self.PluginPreview(data))
+                                return
+                    self.app.notify(
+                        "Plugin source not found in marketplace", severity="error"
+                    )
+                else:
+                    self.app.notify(
+                        "Plugin must be installed to preview", severity="warning"
+                    )
+        elif isinstance(data, MarketplaceState):
             self.app.notify(
                 "Preview is only available for plugins, not marketplaces",
                 severity="warning",
@@ -756,13 +792,12 @@ class MarketplaceView(Widget):
         selected_id: str | None = None
         if self._tree and self._tree.cursor_node:
             data = self._tree.cursor_node.data
-            if isinstance(data, MarketplacePlugin):
-                selected_id = data.full_plugin_id
-            elif isinstance(data, Marketplace):
-                selected_id = f"marketplace:{data.entry.name}"
+            if isinstance(data, PluginState):
+                selected_id = data.plugin_id
+            elif isinstance(data, MarketplaceState):
+                selected_id = f"marketplace:{data.name}"
 
-        if self._provider:
-            self._provider.refresh()
+        # Loader is stateless, just reload data
         self._load_data()
         self._build_tree()
 
@@ -776,8 +811,8 @@ class MarketplaceView(Widget):
 
         for node in self._tree.root.children:
             data = node.data
-            if isinstance(data, Marketplace):
-                if selected_id == f"marketplace:{data.entry.name}":
+            if isinstance(data, MarketplaceState):
+                if selected_id == f"marketplace:{data.name}":
                     self._tree.move_cursor(node)
                     self._selected_data = data
                     self.post_message(self.FooterChanged())
@@ -785,8 +820,8 @@ class MarketplaceView(Widget):
                 for child in node.children:
                     child_data = child.data
                     if (
-                        isinstance(child_data, MarketplacePlugin)
-                        and child_data.full_plugin_id == selected_id
+                        isinstance(child_data, PluginState)
+                        and child_data.plugin_id == selected_id
                     ):
                         self._tree.move_cursor(child)
                         self._selected_data = child_data

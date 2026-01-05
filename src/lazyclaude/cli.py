@@ -5,8 +5,8 @@ import json as json_module
 import sys
 from pathlib import Path
 
-from lazyclaude.models.marketplace import MarketplacePlugin
-from lazyclaude.services.plugin_data_provider import PluginDataProvider
+from lazyclaude.models.marketplace import PluginState
+from lazyclaude.services.unified_data_loader import UnifiedDataLoader
 
 
 def run_cli(args: argparse.Namespace) -> int:
@@ -44,21 +44,54 @@ def handle_list(args: argparse.Namespace) -> int:
     try:
         # Resolve paths at start (no cwd usage downstream)
         user_config = args.user_config or Path.home() / ".claude"
-        project_root = Path(args.directory) if args.directory else Path.cwd()
+        if not args.directory:
+            print(
+                "✗ Error: --directory argument is required for CLI mode",
+                file=sys.stderr,
+            )
+            return 1
+        project_root = Path(args.directory)
+        project_config = project_root / ".claude"
 
-        # Use unified data provider
-        provider = PluginDataProvider(
+        # Use unified data loader
+        loader = UnifiedDataLoader(
             user_config_path=user_config,
+            project_config_path=project_config,
             project_root=project_root,
         )
 
-        # Use unified filtering
-        filtered_plugins = provider.get_filtered_plugins(
-            installed_only=args.installed,
-            enabled_only=args.enabled,
-            marketplace=args.marketplace,
-            query=args.query,
-        )
+        # Load all marketplaces and plugins
+        marketplaces = loader.load_marketplace_states()
+
+        # Flatten plugins from all marketplaces
+        all_plugins: list[PluginState] = []
+        for mp in marketplaces:
+            all_plugins.extend(mp.plugins)
+
+        # Apply filters
+        filtered_plugins = all_plugins
+
+        if args.installed:
+            filtered_plugins = [
+                p for p in filtered_plugins if p.is_accessible_in_current_project
+            ]
+
+        if args.enabled:
+            filtered_plugins = [p for p in filtered_plugins if p.effective_enabled]
+
+        if args.marketplace:
+            filtered_plugins = [
+                p for p in filtered_plugins if p.marketplace_name == args.marketplace
+            ]
+
+        if args.query:
+            query_lower = args.query.lower()
+            filtered_plugins = [
+                p
+                for p in filtered_plugins
+                if query_lower in p.name.lower()
+                or query_lower in (p.description or "").lower()
+            ]
 
         # Output plugins
         if args.json:
@@ -81,77 +114,70 @@ def handle_list(args: argparse.Namespace) -> int:
         return 1
 
 
-def output_plain(plugins: list[MarketplacePlugin]) -> None:
+def output_plain(plugins: list[PluginState]) -> None:
     """Output plugins in plain text format (verbose).
 
     Args:
-        plugins: List of MarketplacePlugin objects
+        plugins: List of PluginState objects
     """
     for plugin in plugins:
-        # Format: name@marketplace  version  [scopes]  description
-        scopes = format_scope_status(plugin.scope_status)
-        print(
-            f"{plugin.full_plugin_id:<35} {plugin.installed_version or '---':<10} {scopes:<25} {plugin.description}"
+        # Format: name@marketplace  version  user/project/local  description
+        scopes = plugin.format_scope_display()
+        version = (
+            plugin.user.version
+            or plugin.project.version
+            or plugin.local.version
+            or "---"
         )
+        print(f"{plugin.plugin_id:<35} {version:<10} {scopes:<15} {plugin.description}")
 
 
-def output_json(plugins: list[MarketplacePlugin]) -> None:
+def output_json(plugins: list[PluginState]) -> None:
     """Output plugins in JSON format.
 
     Args:
-        plugins: List of MarketplacePlugin objects
+        plugins: List of PluginState objects
     """
     output = [
         {
             "name": p.name,
             "marketplace": p.marketplace_name,
-            "version": p.installed_version or "not_installed",
+            "version": p.user.version
+            or p.project.version
+            or p.local.version
+            or "not_installed",
             "description": p.description,
-            "scopes": p.scope_status,
+            "scopes": {
+                "user": {
+                    "installed": p.user.installed,
+                    "enabled": p.user.enabled,
+                    "version": p.user.version,
+                },
+                "project": {
+                    "installed": p.project.installed,
+                    "enabled": p.project.enabled,
+                    "version": p.project.version,
+                },
+                "local": {
+                    "installed": p.local.installed,
+                    "enabled": p.local.enabled,
+                    "version": p.local.version,
+                },
+            },
         }
         for p in plugins
     ]
     print(json_module.dumps(output, indent=2))
 
 
-def output_names_only(plugins: list[MarketplacePlugin]) -> None:
+def output_names_only(plugins: list[PluginState]) -> None:
     """Output only plugin names (one per line).
 
     Args:
-        plugins: List of MarketplacePlugin objects
+        plugins: List of PluginState objects
     """
     for plugin in plugins:
-        print(plugin.full_plugin_id)
-
-
-def format_scope_status(scope_status: dict[str, str]) -> str:
-    """Format scope status dict into display string.
-
-    Args:
-        scope_status: Dict with keys 'user', 'project', 'local'
-
-    Returns:
-        Formatted string like "[I:u]" or "[I:up E:u]" or "[I:u E:p D:l]"
-        Only includes sections that have values.
-        Shows both direct enables and override enables.
-    """
-    installed = "".join(
-        k[0] for k, v in scope_status.items() if v in ("enabled", "disabled")
-    )
-    enabled = "".join(
-        k[0] for k, v in scope_status.items() if v in ("enabled", "override_enabled")
-    )
-    disabled = "".join(k[0] for k, v in scope_status.items() if v == "disabled")
-
-    parts = []
-    if installed:
-        parts.append(f"I:{installed}")
-    if enabled:
-        parts.append(f"E:{enabled}")
-    if disabled:
-        parts.append(f"D:{disabled}")
-
-    return f"[{' '.join(parts)}]"
+        print(plugin.plugin_id)
 
 
 def handle_enable(args: argparse.Namespace) -> int:
@@ -191,7 +217,13 @@ def toggle_plugin(args: argparse.Namespace, enabled: bool) -> int:
     try:
         # Resolve paths at start (no cwd usage downstream)
         user_config = args.user_config or Path.home() / ".claude"
-        project_root = Path(args.directory) if args.directory else Path.cwd()
+        if not args.directory:
+            print(
+                "✗ Error: --directory argument is required for CLI mode",
+                file=sys.stderr,
+            )
+            return 1
+        project_root = Path(args.directory)
 
         if args.scope == "user":
             settings_path = user_config / "settings.json"

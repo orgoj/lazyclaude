@@ -66,20 +66,8 @@ def main() -> None:
         action="store_true",
         help="Output in JSON format",
     )
-    cli_parser.add_argument(
-        "-d",
-        "--directory",
-        type=Path,
-        default=None,
-        help="Project directory (default: current directory)",
-    )
-    cli_parser.add_argument(
-        "-u",
-        "--user-config",
-        type=Path,
-        default=None,
-        help="Override user config path (default: ~/.claude)",
-    )
+    # NOTE: --directory and --user-config are defined at main parser level
+    # and inherited by all subcommands, so no need to redefine here
 
     # Add CLI subcommands (placeholder)
     cli_subparsers = cli_parser.add_subparsers(dest="cli_command", help="CLI commands")
