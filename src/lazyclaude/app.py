@@ -98,6 +98,7 @@ class LazyClaude(
         )
         self._filter_service = FilterService()
         self._customizations: list[Customization] = []
+        self._nav_stack: list[tuple[list[Customization], ViewMode | None]] = []
         self._level_filter: ConfigLevel | None = None
         self._search_query: str = ""
         self._plugin_enabled_filter: bool | None = True
@@ -479,18 +480,26 @@ class LazyClaude(
     def _load_customizations(self) -> None:
         """Load customizations from discovery service."""
         self._customizations = self._discovery_service.discover_all()
+
+        # Initialize navigation stack with base layer
+        if not self._nav_stack:
+            self._nav_stack = [(self._customizations, None)]
+
         self._update_panels()
 
     def _update_panels(self) -> None:
         """Update all panels with filtered customizations."""
         if self._plugin_preview_mode:
+            # In preview mode, use current data from stack with search filter only
+            current_data = self._get_current_customizations()
             customizations = self._filter_service.filter(
-                self._plugin_customizations,
+                current_data,
                 query=self._search_query,
                 level=None,
                 plugin_enabled=None,
             )
         else:
+            # In normal mode, use base customizations with all filters
             customizations = self._get_filtered_customizations()
         for panel in self._panels:
             panel.set_customizations(customizations)
@@ -499,12 +508,52 @@ class LazyClaude(
 
     def _get_filtered_customizations(self) -> list[Customization]:
         """Get customizations filtered by current level and search query."""
+        current_data = self._get_current_customizations()
         return self._filter_service.filter(
-            self._customizations,
+            current_data,
             query=self._search_query,
             level=self._level_filter,
             plugin_enabled=self._plugin_enabled_filter,
         )
+
+    # Navigation stack methods
+    def _get_current_customizations(self) -> list[Customization]:
+        """Get current customizations from top of navigation stack."""
+        if not self._nav_stack:
+            return self._customizations
+        return self._nav_stack[-1][0]
+
+    def _push_nav_state(
+        self, data: list[Customization], prev_mode: ViewMode
+    ) -> None:
+        """Push new navigation state and switch to Normal view."""
+        self._nav_stack.append((data, prev_mode))
+        self._plugin_preview_mode = True
+        self._switch_mode(ViewMode.NORMAL)
+        self._update_panels()
+        self._update_subtitle()
+        self._update_footer_actions()
+        self.refresh_bindings()
+
+    def _navigate_back(self) -> None:
+        """Navigate back in history."""
+        if not self._nav_stack:
+            return
+
+        current_data, prev_mode = self._nav_stack[-1]
+
+        if prev_mode is not None:
+            self._nav_stack.pop()
+            self._plugin_preview_mode = False
+            self._switch_mode(prev_mode)
+            self._update_panels()
+            self._update_subtitle()
+            self._update_status_panel()
+            self._update_footer_actions()
+            self.refresh_bindings()
+
+            if self._main_pane:
+                self._main_pane.customization = None
 
     def _update_display_path(self, customization: Customization | None) -> None:
         """Update main pane display path with resolved path for plugins."""

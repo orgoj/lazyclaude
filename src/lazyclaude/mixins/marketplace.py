@@ -92,15 +92,20 @@ class MarketplaceMixin:
             self.notify("Plugin source not found", severity="warning")  # type: ignore[attr-defined]
             return
 
-        # BUFFER APPROACH: Save current customizations and filter for this plugin
-        self._buffered_customizations = self._customizations  # type: ignore[attr-defined]
-        self._plugin_customizations = [
+        # Discover plugin customizations from plugin directory
+        plugin_customizations = self._discovery_service.discover_from_directory(
+            plugin_dir,
+            marketplace_plugin=None,
+        )
+
+        # Filter only this plugin's customizations
+        plugin_customizations = [
             c
-            for c in self._customizations  # type: ignore[attr-defined]
+            for c in plugin_customizations
             if c.plugin_info is not None and c.plugin_info.plugin_id == plugin.plugin_id
         ]
 
-        if not self._plugin_customizations:
+        if not plugin_customizations:
             self.notify(  # type: ignore[attr-defined]
                 f"No customizations found for {plugin.name}",
                 severity="warning",
@@ -108,18 +113,14 @@ class MarketplaceMixin:
             return
 
         self._previewing_plugin = plugin
-        self._plugin_preview_mode = True
 
-        self._switch_mode(ViewMode.NORMAL)  # type: ignore[attr-defined]
+        # Push plugin data onto navigation stack
+        self._push_nav_state(plugin_customizations, ViewMode.MARKETPLACE)  # type: ignore[attr-defined]
 
         # Focus first panel to activate panel bindings (0-7, Tab)
         if self._panels:  # type: ignore[attr-defined]
             self._panels[0].focus()  # type: ignore[attr-defined]
 
-        self._update_panels()  # type: ignore[attr-defined]
-        self._update_subtitle()  # type: ignore[attr-defined]
-        self._update_footer_actions()  # type: ignore[attr-defined]
-        self.refresh_bindings()  # type: ignore[attr-defined]
         if self._status_panel:
             if plugin.is_installed_anywhere:
                 resolved_version = plugin_dir.name
@@ -168,34 +169,13 @@ class MarketplaceMixin:
 
     def _exit_plugin_preview(self) -> None:
         """Exit plugin preview mode and return to marketplace."""
-        self._plugin_preview_mode = False
         self._previewing_plugin = None
-
-        # BUFFER APPROACH: Restore original customizations
-        if self._buffered_customizations:
-            self._customizations = self._buffered_customizations  # type: ignore[attr-defined]
-            self._buffered_customizations = []
-
-        self._plugin_customizations = []
         self._search_query = ""
         if self._filter_input:
             self._filter_input.clear()
-        self._update_panels()  # type: ignore[attr-defined]
-        self._update_subtitle()  # type: ignore[attr-defined]
-        self._update_status_panel()  # type: ignore[attr-defined]
-        self._update_footer_actions()  # type: ignore[attr-defined]
-        self.refresh_bindings()  # type: ignore[attr-defined]
 
-        if self._main_pane:
-            self._main_pane.customization = None
-
-        # Switch to MARKETPLACE view and preserve marketplace state (filters, cursor position)
-        self._view_mode = ViewMode.MARKETPLACE  # type: ignore[attr-defined]
-        normal_view = self.query_one("#normal-view", Container)  # type: ignore[attr-defined]
-        normal_view.remove_class("visible")  # type: ignore[attr-defined]
-        if self._marketplace_view:
-            self._marketplace_view.add_class("visible")
-            self._marketplace_view.show(preserve_state=True)
+        # Navigate back using navigation stack
+        self._navigate_back()  # type: ignore[attr-defined]
 
     def action_exit_preview(self) -> None:
         """Exit plugin preview mode (visible binding for Esc in preview)."""
