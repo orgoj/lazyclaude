@@ -2,7 +2,6 @@
 
 import json
 import logging
-import warnings
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -111,82 +110,6 @@ class PluginLoader:
         except (json.JSONDecodeError, OSError):
             return {}
 
-    def get_enabled_plugins(self) -> list[PluginInfo]:
-        """Get list of enabled plugin infos with resolved install paths."""
-        all_plugins = self.get_all_plugins()
-        return [p for p in all_plugins if p.is_enabled]
-
-    def get_all_plugins(self) -> list[PluginInfo]:
-        """Get list of ALL plugin infos (enabled and disabled) with resolved install paths.
-
-        Deprecated: Use UnifiedDataLoader.get_plugin_states() instead.
-
-        This method has incorrect scope priority logic and will be removed.
-        It returns PluginInfo objects that only consider one scope at a time,
-        not the hierarchical priority (local > project > user).
-
-        Uses three-phase discovery:
-        1. User plugins: All entries with scope="user"
-        2. Project plugins: Entries from project's settings.json enabledPlugins
-           that have scope="project" and matching projectPath
-        3. Local plugins: Entries from project's settings.local.json enabledPlugins
-           that have scope="local" and matching projectPath
-        """
-        warnings.warn(
-            "PluginLoader.get_all_plugins() is deprecated, use UnifiedDataLoader.get_plugin_states() instead",
-            DeprecationWarning,
-            stacklevel=2,
-        )
-        registry = self.load_registry()
-        plugins: list[PluginInfo] = []
-
-        # Phase 1: User-scoped plugins
-        for plugin_id, installations in registry.installed.items():
-            for installation in installations:
-                if installation.scope == "user":
-                    plugin_info = self._create_plugin_info(
-                        plugin_id, installation, scope_type="user"
-                    )
-                    if plugin_info and plugin_info.install_path.is_dir():
-                        plugins.append(plugin_info)
-
-        # Phase 2: Project-scoped plugins (driven by project settings.json)
-        for plugin_id in registry.project_enabled:
-            installations = registry.installed.get(plugin_id, [])
-            for installation in installations:
-                if installation.scope == "project" and self._matches_current_project(
-                    installation.project_path
-                ):
-                    plugin_info = self._create_plugin_info(
-                        plugin_id, installation, scope_type="project"
-                    )
-                    if plugin_info and plugin_info.install_path.is_dir():
-                        plugins.append(plugin_info)
-
-        # Phase 3: Local-scoped plugins (driven by settings.local.json)
-        for plugin_id in registry.local_enabled:
-            installations = registry.installed.get(plugin_id, [])
-            for installation in installations:
-                if installation.scope == "local" and self._matches_current_project(
-                    installation.project_path
-                ):
-                    plugin_info = self._create_plugin_info(
-                        plugin_id, installation, scope_type="local"
-                    )
-                    if plugin_info and plugin_info.install_path.is_dir():
-                        plugins.append(plugin_info)
-
-        return plugins
-
-    def _matches_current_project(self, project_path: str | None) -> bool:
-        """Check if project_path matches current project root."""
-        if not project_path or not self.project_root:
-            return False
-        try:
-            return Path(project_path).resolve() == self.project_root.resolve()
-        except OSError:
-            return False
-
     def refresh(self) -> None:
         """Clear cached registry to force reload."""
         self._registry = None
@@ -292,61 +215,6 @@ class PluginLoader:
             return result
         except (json.JSONDecodeError, OSError):
             return {}
-
-    def _create_plugin_info(
-        self,
-        plugin_id: str,
-        installation: PluginInstallation,
-        scope_type: str,
-    ) -> PluginInfo | None:
-        """Create PluginInfo from V2 installation data.
-
-        Args:
-            plugin_id: Plugin identifier
-            installation: Installation data from registry
-            scope_type: One of "user", "project", or "local"
-        """
-        if not installation.install_path:
-            return None
-
-        short_name = plugin_id.split("@")[0] if "@" in plugin_id else plugin_id
-        install_path = Path(installation.install_path)
-        version = installation.version
-
-        if not install_path.is_dir() and install_path.parent.is_dir():
-            install_path = self._find_latest_version_dir(install_path.parent)
-            version = install_path.name
-
-        # Determine enabled status based on scope
-        is_enabled = True
-        if self._registry:
-            if scope_type == "project":
-                is_enabled = self._registry.project_enabled.get(plugin_id, True)
-            elif scope_type == "local":
-                is_enabled = self._registry.local_enabled.get(plugin_id, True)
-            else:
-                is_enabled = self._registry.user_enabled.get(plugin_id, True)
-
-        scope_map = {
-            "user": PluginScope.USER,
-            "project": PluginScope.PROJECT,
-            "local": PluginScope.PROJECT_LOCAL,
-        }
-        scope = scope_map[scope_type]
-        project_path = (
-            Path(installation.project_path) if installation.project_path else None
-        )
-
-        return PluginInfo(
-            plugin_id=plugin_id,
-            short_name=short_name,
-            version=version,
-            install_path=install_path,
-            is_local=installation.is_local,
-            is_enabled=is_enabled,
-            scope=scope,
-            project_path=project_path,
-        )
 
     def _find_latest_version_dir(self, parent_dir: Path) -> Path:
         """Find the latest version directory in a plugin parent directory.
