@@ -254,10 +254,34 @@ SLASH_COMMAND, SUBAGENT, SKILL, MEMORY_FILE, MCP, HOOK
   - `I` (install), `E` (enable), `D` (disable), `U` (uninstall) - plugin actions with scope selector
   - `A` (add marketplace source), `u` (update marketplace/plugin)
   - `i` (toggle installed-only filter), `n` (toggle enabled-only filter)
-  - `p` (preview plugin), `e` (open plugin/marketplace folder in editor), `o` (open source URL)
+  - `p` (preview plugin), `e` (open plugin/marketplace folder in editor), `o` (open source URL), `w` (open URL in browser)
   - `j/k` (nav), `h/l` (collapse/expand), `L/H` (expand/collapse all)
 - Emits messages: `PluginAction`, `PluginUninstall`, `OpenPluginFolder`, `OpenMarketplaceFolder`, `ViewClosed`, `FooterChanged`, `MarketplaceUpdate`, `MarketplaceAdd`, `MarketplaceRemove`
 - `e` key on marketplace opens install directory in $EDITOR
+
+**Technical Patterns - Textual Exception Handling:**
+```python
+# Override _handle_exception() for app-wide exception handling
+def _handle_exception(self, error: Exception) -> None:
+    """Override Textual's exception handler."""
+    if self.debug_mode:
+        logger.error(f"Exception: {error}")
+    traceback.print_exc(file=sys.stderr)
+    super()._handle_exception(error)  # Call parent for Rich traceback
+```
+- Don't use `on_exception()` - wrong method name
+- Don't override `_fatal_error()` - breaks Textual's built-in error display
+- Always call `super()._handle_exception(error)` for framework integration
+
+**Technical Patterns - Union Type Handling:**
+```python
+# For flexible field types (str | dict[str, Any])
+def extract_value(source: str | dict[str, Any]) -> str:
+    if isinstance(source, dict):
+        url = source.get("url")
+        return str(url) if url is not None else str(source)
+    return source
+```
 
 **Plugin Preview Mode:**
 - Activated by pressing `p` on an **installed** plugin in marketplace view
@@ -313,7 +337,10 @@ Commands run in background workers (`@work(thread=True)`) to keep UI responsive.
 - ALL downstream code must use absolute paths passed from entry point
 - Services MUST require explicit `project_config_path` parameter - no cwd fallbacks
 - NEVER use `cd` to change directories - use relative paths or subshells `(cd DIR && CMD)`
+- WRONG pattern (forbidden): `project_root = args.directory or Path.cwd()`
+- CORRECT pattern: Require explicit argument, fail fast with error message
 - Rationale: Wrapper scripts that `cd` before running will break relative path assumptions
+- Silent fallbacks hide bugs - fail-fast reveals them immediately
 
 **Test-Driven Development:**
 - Write failing tests first, then implementation, then verify tests pass
@@ -326,6 +353,15 @@ Commands run in background workers (`@work(thread=True)`) to keep UI responsive.
 - Multi-step tasks: use `superpowers:writing-plans` for detailed planning
 - Execution: use `superpowers:subagent-driven-development` with review loops
 - Never auto-create PRs or merge without explicit user request - user controls git workflow
+
+**Process Discipline (NON-NEGOTIABLE):**
+- NEVER commit before user approval - even if tests pass, wait for explicit confirmation
+- NEVER write implementation code before brainstorming for non-trivial changes
+- For bugs: ALWAYS use systematic-debugging skill before proposing fixes
+- KISS principle: simple solutions first, complexity only when proven necessary
+- When user expresses frustration (Czech corrections): stop immediately, don't argue, reassess approach
+- Check for rule violations first when user says something is wrong
+- User's direct feedback > my assumptions or technical justifications
 
 **Documentation Updates**
 - Every feature change MUST include documentation updates
