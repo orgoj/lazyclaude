@@ -29,7 +29,6 @@ logger = logging.getLogger(__name__)
 if TYPE_CHECKING:
     from lazyclaude.models.settings import AppSettings
     from lazyclaude.services.discovery import ConfigDiscoveryService
-    from lazyclaude.services.plugin_data_provider import PluginDataProvider
     from lazyclaude.widgets.app_footer import AppFooter
     from lazyclaude.widgets.combined_panel import CombinedPanel
     from lazyclaude.widgets.detail_pane import MainPane
@@ -44,10 +43,10 @@ class MarketplaceMixin:
     _marketplace_view: MarketplaceView | None
     _marketplace_confirm: MarketplaceConfirm | None
     _marketplace_source_input: MarketplaceSourceInput | None
-    _plugin_data_provider: "PluginDataProvider | None"
     _plugin_preview_mode: bool
     _previewing_plugin: PluginState | None
     _plugin_customizations: list[Customization]
+    _buffered_customizations: list[Customization]
     _search_query: str
     _discovery_service: "ConfigDiscoveryService"
     _main_pane: "MainPane | None"
@@ -68,11 +67,13 @@ class MarketplaceMixin:
 
     def _enter_plugin_preview(self, plugin: PluginState) -> None:
         """Enter plugin preview mode - show plugin's customizations in panels."""
-        if not self._plugin_data_provider:
-            self.notify("Plugin data provider not available", severity="error")  # type: ignore[attr-defined]
-            return
+        # Get install_path from first available scope
+        plugin_dir = (
+            plugin.user.install_path
+            or plugin.project.install_path
+            or plugin.local.install_path
+        )
 
-        plugin_dir = self._plugin_data_provider.get_plugin_source_dir(plugin)  # type: ignore[arg-type]
         if not plugin_dir or not plugin_dir.exists():
             # If source is a URL, open in browser instead of showing error
             from ..models.marketplace import extract_source_url
@@ -91,18 +92,21 @@ class MarketplaceMixin:
             self.notify("Plugin source not found", severity="warning")  # type: ignore[attr-defined]
             return
 
-        plugin_info = PluginInfo(
-            plugin_id=plugin.plugin_id,
-            short_name=plugin.name,
-            version="preview",
-            install_path=plugin_dir,
-            is_enabled=plugin.effective_enabled,
-        )
-        self._plugin_customizations = self._discovery_service.discover_from_directory(
-            plugin_dir,
-            plugin_info,
-            marketplace_plugin=plugin,  # type: ignore[arg-type]
-        )
+        # BUFFER APPROACH: Save current customizations and filter for this plugin
+        self._buffered_customizations = self._customizations  # type: ignore[attr-defined]
+        self._plugin_customizations = [
+            c
+            for c in self._customizations  # type: ignore[attr-defined]
+            if c.plugin_info is not None and c.plugin_info.plugin_id == plugin.plugin_id
+        ]
+
+        if not self._plugin_customizations:
+            self.notify(  # type: ignore[attr-defined]
+                f"No customizations found for {plugin.name}",
+                severity="warning",
+            )
+            return
+
         self._previewing_plugin = plugin
         self._plugin_preview_mode = True
 
@@ -137,6 +141,13 @@ class MarketplaceMixin:
             if readme_path.is_file():
                 try:
                     readme_content = readme_path.read_text(encoding="utf-8")
+                    plugin_info = PluginInfo(
+                        plugin_id=plugin.plugin_id,
+                        short_name=plugin.name,
+                        version="preview",
+                        install_path=plugin_dir,
+                        is_enabled=plugin.effective_enabled,
+                    )
                     readme_customization = Customization(
                         name="README.md",
                         type=CustomizationType.MEMORY_FILE,
@@ -159,6 +170,12 @@ class MarketplaceMixin:
         """Exit plugin preview mode and return to marketplace."""
         self._plugin_preview_mode = False
         self._previewing_plugin = None
+
+        # BUFFER APPROACH: Restore original customizations
+        if self._buffered_customizations:
+            self._customizations = self._buffered_customizations  # type: ignore[attr-defined]
+            self._buffered_customizations = []
+
         self._plugin_customizations = []
         self._search_query = ""
         if self._filter_input:
@@ -481,6 +498,45 @@ class MarketplaceMixin:
                 open_github_source(repo)
             else:
                 self.notify("GitHub repository not configured", severity="warning")  # type: ignore[attr-defined]
+
+    def on_marketplace_view_open_plugin_url(
+        self, message: MarketplaceView.OpenPluginUrl
+    ) -> None:
+        """Handle opening plugin URL in browser."""
+        plugin = message.plugin
+
+        # Try homepage first, then repository
+        url = plugin.homepage or plugin.repository
+        if not url or not url.startswith(("http://", "https://")):
+            self.notify("No URL available for this plugin", severity="warning")  # type: ignore[attr-defined]
+            return
+
+        import webbrowser
+
+        webbrowser.open(url)
+        self.notify(  # type: ignore[attr-defined]
+            f"Opening {plugin.name} in browser",
+            severity="information",
+        )
+
+    def on_marketplace_view_open_marketplace_url(
+        self, message: MarketplaceView.OpenMarketplaceUrl
+    ) -> None:
+        """Handle opening marketplace URL in browser."""
+        marketplace = message.marketplace
+
+        url = marketplace.source_url
+        if not url or not url.startswith(("http://", "https://")):
+            self.notify("No URL available for this marketplace", severity="warning")  # type: ignore[attr-defined]
+            return
+
+        import webbrowser
+
+        webbrowser.open(url)
+        self.notify(  # type: ignore[attr-defined]
+            f"Opening {marketplace.name} in browser",
+            severity="information",
+        )
 
     def on_marketplace_view_marketplace_update(
         self, message: MarketplaceView.MarketplaceUpdate

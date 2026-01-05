@@ -126,6 +126,7 @@ class LazyClaude(
         self._plugin_preview_mode: bool = False
         self._previewing_plugin: PluginState | None = None
         self._plugin_customizations: list[Customization] = []
+        self._buffered_customizations: list[Customization] = []
         self._settings_service = SettingsService()
         self._settings = AppSettings()
         self.debug_mode: bool = False

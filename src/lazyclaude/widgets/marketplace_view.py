@@ -40,6 +40,7 @@ class MarketplaceView(Widget):
         Binding("p", "preview_plugin", "Preview", show=False),
         Binding("e", "open_plugin_folder", "Edit", show=False),
         Binding("o", "open_source", "Open", show=False),
+        Binding("w", "open_url", "Web", show=False),
         Binding("u", "update_marketplace", "Update", show=False),
         # Navigation bindings
         Binding("j", "cursor_down", "Down", show=False),
@@ -118,6 +119,13 @@ class MarketplaceView(Widget):
             self.marketplace = marketplace
             super().__init__()
 
+    class OpenPluginUrl(Message):
+        """Emitted when user requests to open plugin URL in browser."""
+
+        def __init__(self, plugin: PluginState) -> None:
+            self.plugin = plugin
+            super().__init__()
+
     class OpenMarketplaceFolder(Message):
         """Emitted when user requests to open marketplace folder."""
 
@@ -127,6 +135,13 @@ class MarketplaceView(Widget):
 
     class OpenMarketplaceSource(Message):
         """Emitted when user requests to open marketplace source location."""
+
+        def __init__(self, marketplace: MarketplaceState) -> None:
+            self.marketplace = marketplace
+            super().__init__()
+
+    class OpenMarketplaceUrl(Message):
+        """Emitted when user requests to open marketplace URL in browser."""
 
         def __init__(self, marketplace: MarketplaceState) -> None:
             self.marketplace = marketplace
@@ -690,6 +705,21 @@ class MarketplaceView(Widget):
             parent = node.parent
             if parent and isinstance(parent.data, MarketplaceState):
                 self.post_message(self.OpenPluginSource(data, parent.data))
+
+    def action_open_url(self) -> None:
+        """Open the selected item's URL in browser."""
+        if not self._tree:
+            return
+
+        node = self._tree.cursor_node
+        if node is None:
+            return
+
+        data = node.data
+        if isinstance(data, MarketplaceState):
+            self.post_message(self.OpenMarketplaceUrl(data))
+        elif isinstance(data, PluginState):
+            self.post_message(self.OpenPluginUrl(data))
 
     def action_update_marketplace(self) -> None:
         """Update the selected marketplace or plugin."""
