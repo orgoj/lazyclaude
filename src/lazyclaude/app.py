@@ -1,5 +1,6 @@
 """Main LazyClaude TUI Application."""
 
+import logging
 import os
 import shlex
 import subprocess
@@ -52,6 +53,8 @@ from lazyclaude.widgets.marketplace_view import MarketplaceView
 from lazyclaude.widgets.plugin_confirm import PluginConfirm
 from lazyclaude.widgets.status_panel import StatusPanel
 from lazyclaude.widgets.type_panel import TypePanel
+
+logger = logging.getLogger(__name__)
 
 
 class LazyClaude(
@@ -324,8 +327,11 @@ class LazyClaude(
                     self._combined_panel.has_focus if self._combined_panel else False
                 )
                 self._marketplace_view.add_class("visible")
+
+                # Always preserve marketplace state (selection, expand/collapse, filters)
                 self._marketplace_view.show(
-                    auto_collapse=self._settings.marketplace_auto_collapse
+                    preserve_state=True,
+                    auto_collapse=self._settings.marketplace_auto_collapse,
                 )
 
         self._view_mode = mode
@@ -523,9 +529,7 @@ class LazyClaude(
             return self._customizations
         return self._nav_stack[-1][0]
 
-    def _push_nav_state(
-        self, data: list[Customization], prev_mode: ViewMode
-    ) -> None:
+    def _push_nav_state(self, data: list[Customization], prev_mode: ViewMode) -> None:
         """Push new navigation state and switch to Normal view."""
         self._nav_stack.append((data, prev_mode))
         self._plugin_preview_mode = True
@@ -537,6 +541,10 @@ class LazyClaude(
 
     def _navigate_back(self) -> None:
         """Navigate back in history."""
+        logger.debug(
+            f"[NAV] _navigate_back() called, nav_stack size: {len(self._nav_stack)}"
+        )
+
         if not self._nav_stack:
             return
 
@@ -545,7 +553,10 @@ class LazyClaude(
         if prev_mode is not None:
             self._nav_stack.pop()
             self._plugin_preview_mode = False
+
+            # Switch back to previous view (handles both hiding/showing and data loading)
             self._switch_mode(prev_mode)
+
             self._update_panels()
             self._update_subtitle()
             self._update_status_panel()

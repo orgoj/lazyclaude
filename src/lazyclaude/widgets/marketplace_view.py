@@ -297,7 +297,7 @@ class MarketplaceView(Widget):
         """Set the unified data loader."""
         self._loader = loader
 
-    def show(self, preserve_state: bool = False, auto_collapse: bool = True) -> None:
+    def show(self, preserve_state: bool = True, auto_collapse: bool = True) -> None:
         """Show the modal and load marketplace data."""
         import logging
 
@@ -306,7 +306,8 @@ class MarketplaceView(Widget):
             f"[MARKETPLACE VIEW] show() called, preserve_state={preserve_state}"
         )
 
-        if not preserve_state:
+        # Load data when: first show, empty tree, or explicitly requested
+        if not preserve_state or self._tree is None or not self._tree.root.children:
             logger.debug("[MARKETPLACE VIEW] Loading data and building tree")
             self._installed_only_filter = False
             self._enabled_only_filter = False

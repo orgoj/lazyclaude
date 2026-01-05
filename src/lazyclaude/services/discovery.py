@@ -614,10 +614,6 @@ class ConfigDiscoveryService(IConfigDiscoveryService):
         plugin_states = self._unified_data_loader.get_plugin_states()
 
         for plugin_state in plugin_states:
-            # Use effective_enabled which implements local > project > user priority
-            if not plugin_state.effective_enabled:
-                continue
-
             # Convert PluginState to PluginInfo for compatibility with existing code
             plugin_info = self._plugin_state_to_info(plugin_state)
             if not plugin_info:

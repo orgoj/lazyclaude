@@ -6,8 +6,6 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-from lazyclaude.models.customization import PluginInfo, PluginScope
-
 logger = logging.getLogger(__name__)
 
 
@@ -113,6 +111,15 @@ class PluginLoader:
     def refresh(self) -> None:
         """Clear cached registry to force reload."""
         self._registry = None
+
+    def _matches_current_project(self, project_path: str | None) -> bool:
+        """Check if project_path matches current project root."""
+        if not project_path or not self.project_root:
+            return False
+        try:
+            return Path(project_path).resolve() == self.project_root.resolve()
+        except OSError:
+            return False
 
     def get_plugin_source_path(self, plugin_id: str) -> Path | None:
         """Get the source path for a plugin.

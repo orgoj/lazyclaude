@@ -109,12 +109,46 @@ class MarketplaceInfoPanel(Widget):
         if plugin.description:
             self._add_field(scroll, "Description", plugin.description)
 
-        # Source
+        # Source - construct full URL for github marketplaces
         if plugin.source:
-            from ..models.marketplace import extract_source_url
+            from pathlib import Path
 
-            source_url = extract_source_url(plugin.source)
-            self._add_field(scroll, "Source", source_url)
+            # Try to construct GitHub URL for github marketplaces
+            # Convert source to string (can be str or dict)
+            if isinstance(plugin.source, dict):
+                source_display = str(plugin.source)
+            else:
+                source_display = plugin.source
+
+            if hasattr(plugin, "marketplace_name"):
+                marketplaces_file = (
+                    Path.home() / ".claude" / "plugins" / "known_marketplaces.json"
+                )
+                if marketplaces_file.is_file():
+                    try:
+                        import json
+
+                        data = json.loads(marketplaces_file.read_text(encoding="utf-8"))
+                        mp_data = data.get(plugin.marketplace_name, {})
+                        source = mp_data.get("source", {})
+
+                        if source.get("source") == "github":
+                            repo = source.get("repo", "")
+                            plugin_path = (
+                                plugin.source if isinstance(plugin.source, str) else ""
+                            )
+
+                            # Construct GitHub URL
+                            if repo:
+                                github_url = f"https://github.com/{repo}"
+                                if plugin_path:
+                                    clean_path = plugin_path.lstrip("./").rstrip("/")
+                                    github_url = f"{github_url}/tree/main/{clean_path}"
+                                source_display = github_url
+                    except (OSError, json.JSONDecodeError):
+                        pass
+
+            self._add_field(scroll, "Source", source_display)
 
         # Version
         installed_version = (

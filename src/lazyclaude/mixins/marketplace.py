@@ -9,13 +9,12 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 
 from textual import work
-from textual.containers import Container
 
 from lazyclaude.models.customization import (
     ConfigLevel,
     Customization,
     CustomizationType,
-    PluginInfo,
+    PluginScope,
 )
 from lazyclaude.models.marketplace import PluginState
 from lazyclaude.models.view_mode import ViewMode
@@ -74,43 +73,113 @@ class MarketplaceMixin:
             or plugin.local.install_path
         )
 
+        # If not installed, try directory-source marketplace or open GitHub URL
+        if (not plugin_dir or not plugin_dir.exists()) and hasattr(
+            plugin, "marketplace_name"
+        ):
+            marketplaces_file = (
+                Path.home() / ".claude" / "plugins" / "known_marketplaces.json"
+            )
+
+            if marketplaces_file.is_file():
+                try:
+                    import json
+
+                    data = json.loads(marketplaces_file.read_text(encoding="utf-8"))
+                    mp_data = data.get(plugin.marketplace_name, {})
+                    source = mp_data.get("source", {})
+
+                    # Directory-source marketplace - find plugin in marketplace location
+                    if source.get("source") == "directory":
+                        marketplace_root = Path(source.get("path", ""))
+                        if marketplace_root.exists():
+                            mp_json = (
+                                marketplace_root / ".claude-plugin" / "marketplace.json"
+                            )
+                            if mp_json.is_file():
+                                mp_plugins = json.loads(mp_json.read_text())["plugins"]
+                                for mp_plugin in mp_plugins:
+                                    if mp_plugin.get("name") == plugin.name:
+                                        plugin_source = mp_plugin.get("source", "")
+                                        plugin_dir = (
+                                            marketplace_root / plugin_source
+                                        ).resolve()
+                                        break
+                    # GitHub marketplace - construct and open URL
+                    elif source.get("source") == "github":
+                        repo = source.get("repo", "")
+                        plugin_path = (
+                            plugin.source if isinstance(plugin.source, str) else ""
+                        )
+                        if repo:
+                            github_url = f"https://github.com/{repo}"
+                            if plugin_path:
+                                clean_path = plugin_path.lstrip("./").rstrip("/")
+                                github_url = f"{github_url}/tree/main/{clean_path}"
+                            import webbrowser
+                            webbrowser.open(github_url)
+                            self.notify(  # type: ignore[attr-defined]
+                                f"Opening {plugin.name} on GitHub",
+                                severity="information",
+                            )
+                            return
+                except (OSError, json.JSONDecodeError):
+                    pass
+
         if not plugin_dir or not plugin_dir.exists():
-            # If source is a URL, open in browser instead of showing error
-            from ..models.marketplace import extract_source_url
+            self.notify(
+                f"Plugin '{plugin.name}' is not installed. Install it first to preview.",
+                severity="warning",
+            )  # type: ignore[attr-defined]
+            return
 
-            source_url = extract_source_url(plugin.source)
-            if source_url.startswith(("http://", "https://")):
-                import webbrowser
+        # Create PluginInfo from PluginState for discover_from_directory
+        scope_priority = [
+            (plugin.local, ConfigLevel.PROJECT_LOCAL, PluginScope.PROJECT_LOCAL),
+            (plugin.project, ConfigLevel.PROJECT, PluginScope.PROJECT),
+            (plugin.user, ConfigLevel.USER, PluginScope.USER),
+        ]
 
-                webbrowser.open(source_url)
-                self.notify(  # type: ignore[attr-defined]
-                    f"Opening {plugin.name} source in browser",
-                    severity="information",
+        plugin_info = None
+        install_path = None
+        version = None
+        is_local = False
+
+        for scope_state, config_level, scope in scope_priority:
+            if scope_state.installed and scope_state.install_path:
+                install_path = scope_state.install_path
+                version = scope_state.version or "unknown"
+                is_local = config_level == ConfigLevel.PROJECT_LOCAL
+
+                from ..models.customization import PluginInfo
+
+                plugin_info = PluginInfo(
+                    plugin_id=plugin.plugin_id,
+                    short_name=plugin.name,
+                    version=version,
+                    install_path=install_path,
+                    is_local=is_local,
+                    is_enabled=plugin.effective_enabled,
+                    scope=scope,
+                    project_path=self._discovery_service.project_root
+                    if config_level != ConfigLevel.USER
+                    else None,
                 )
-                return
+                break
 
-            self.notify("Plugin source not found", severity="warning")  # type: ignore[attr-defined]
+        if not plugin_info:
+            self.notify(  # type: ignore[attr-defined]
+                f"Plugin {plugin.name} has no valid installation path",
+                severity="warning",
+            )
             return
 
         # Discover plugin customizations from plugin directory
         plugin_customizations = self._discovery_service.discover_from_directory(
-            plugin_dir,
+            install_path,
+            plugin_info=plugin_info,
             marketplace_plugin=None,
         )
-
-        # Filter only this plugin's customizations
-        plugin_customizations = [
-            c
-            for c in plugin_customizations
-            if c.plugin_info is not None and c.plugin_info.plugin_id == plugin.plugin_id
-        ]
-
-        if not plugin_customizations:
-            self.notify(  # type: ignore[attr-defined]
-                f"No customizations found for {plugin.name}",
-                severity="warning",
-            )
-            return
 
         self._previewing_plugin = plugin
 
