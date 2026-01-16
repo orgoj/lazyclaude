@@ -286,6 +286,7 @@ Plugins show their installation state across scopes:
 - `I` (Shift+i) - Install plugin (prompts for scope selection)
 - `E` (Shift+e) - Enable plugin (prompts for scope selection)
 - `D` - Disable plugin (prompts for scope selection)
+- `R` - Reset plugin setting (removes from scope, inherits from parent)
 - `U` (Shift+u) - Uninstall plugin
 - `i` - Toggle installed-only filter
 - `n` - Toggle enabled-only filter
@@ -337,6 +338,7 @@ Plugins show their installation state across scopes:
 3. Use management actions:
    - `E` (Shift+e) - Enable plugin at specific scope
    - `D` - Disable plugin at specific scope
+   - `R` - Reset plugin setting (remove from scope)
    - `U` (Shift+u) - Uninstall plugin
    - `e` - Open installed plugin folder
    - `o` - Open source URL in browser

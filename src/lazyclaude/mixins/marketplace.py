@@ -117,6 +117,7 @@ class MarketplaceMixin:
                                 clean_path = plugin_path.lstrip("./").rstrip("/")
                                 github_url = f"{github_url}/tree/main/{clean_path}"
                             import webbrowser
+
                             webbrowser.open(github_url)
                             self.notify(  # type: ignore[attr-defined]
                                 f"Opening {plugin.name} on GitHub",
@@ -127,10 +128,10 @@ class MarketplaceMixin:
                     pass
 
         if not plugin_dir or not plugin_dir.exists():
-            self.notify(
+            self.notify(  # type: ignore[attr-defined]
                 f"Plugin '{plugin.name}' is not installed. Install it first to preview.",
                 severity="warning",
-            )  # type: ignore[attr-defined]
+            )
             return
 
         # Create PluginInfo from PluginState for discover_from_directory
@@ -175,6 +176,7 @@ class MarketplaceMixin:
             return
 
         # Discover plugin customizations from plugin directory
+        assert install_path is not None  # Guaranteed by plugin_info check above
         plugin_customizations = self._discovery_service.discover_from_directory(
             install_path,
             plugin_info=plugin_info,
@@ -353,6 +355,23 @@ class MarketplaceMixin:
             logger.debug(f"[PLUGIN CMD] -> FAILED: {type(e).__name__}: {e}")
             self.call_from_thread(self._on_plugin_command_error, f"Error: {str(e)}")  # type: ignore[attr-defined]
 
+    @work(thread=True)
+    def _run_reset_plugin(
+        self,
+        plugin_id: str,
+        scope: str,
+        success_msg: str,
+    ) -> None:
+        """Reset plugin setting by removing it from enabledPlugins."""
+        success = self._reset_enabled_plugins_json(plugin_id, scope)
+        if success:
+            self.call_from_thread(self._on_plugin_command_success, success_msg)  # type: ignore[attr-defined]
+        else:
+            self.call_from_thread(  # type: ignore[attr-defined]
+                self._on_plugin_command_error,
+                f"Failed to reset {plugin_id} in {scope} scope",
+            )
+
     def _edit_enabled_plugins_json(
         self, plugin_id: str, scope: str, enabled: bool
     ) -> bool:
@@ -412,6 +431,60 @@ class MarketplaceMixin:
 
         except (OSError, json.JSONDecodeError) as e:
             logger.debug(f"[JSON EDIT] Failed: {e}")
+            return False
+
+    def _reset_enabled_plugins_json(self, plugin_id: str, scope: str) -> bool:
+        """Remove plugin from enabledPlugins in the appropriate settings.json file.
+
+        Args:
+            plugin_id: Plugin identifier
+            scope: "user", "project", or "local"
+
+        Returns:
+            True if successful, False otherwise
+        """
+        # Determine which settings file to edit
+        if scope == "user":
+            settings_path = Path.home() / ".claude" / "settings.json"
+        elif scope == "project":
+            project_root = getattr(self._discovery_service, "project_root", None)
+            if not project_root:
+                logger.debug("[JSON RESET] No project root found")
+                return False
+            settings_path = project_root / ".claude" / "settings.json"
+        else:  # local
+            project_root = getattr(self._discovery_service, "project_root", None)
+            if not project_root:
+                logger.debug("[JSON RESET] No project root found")
+                return False
+            settings_path = project_root / ".claude" / "settings.local.json"
+
+        logger.debug(f"[JSON RESET] Removing {plugin_id} from {settings_path}")
+
+        try:
+            if not settings_path.is_file():
+                logger.debug("[JSON RESET] Settings file does not exist")
+                return True  # Nothing to remove
+
+            data = json.loads(settings_path.read_text(encoding="utf-8"))
+
+            if "enabledPlugins" not in data or plugin_id not in data["enabledPlugins"]:
+                logger.debug("[JSON RESET] Plugin not in enabledPlugins")
+                return True  # Nothing to remove
+
+            del data["enabledPlugins"][plugin_id]
+
+            # Write back
+            settings_path.write_text(
+                json.dumps(data, indent=2, ensure_ascii=False) + "\n",
+                encoding="utf-8",
+            )
+
+            logger.debug(f"[JSON RESET] Removed {plugin_id} from {settings_path}")
+            return True
+
+        except (OSError, json.JSONDecodeError) as e:
+            logger.debug(f"[JSON RESET] Failed: {e}")
             return False
 
     def _on_plugin_command_success(self, success_msg: str) -> None:
@@ -659,6 +732,8 @@ class MarketplaceMixin:
                 self._run_enable_disable_with_fallback(
                     plugin.plugin_id, scope, action, success_msg
                 )
+            elif action == "reset":
+                self._run_reset_plugin(plugin.plugin_id, scope, success_msg)
             else:
                 cmd = self._build_plugin_command_with_scope(plugin, scope, action)
                 self._run_plugin_command(cmd, success_msg)

@@ -32,6 +32,7 @@ class MarketplaceView(Widget):
         Binding("I", "install_plugin", "Install", show=False),
         Binding("E", "enable_plugin", "Enable", show=False),
         Binding("D", "disable_plugin", "Disable", show=False),
+        Binding("R", "reset_plugin", "Reset", show=False),
         Binding("U", "uninstall", "Uninstall", show=False),
         Binding("A", "add_marketplace", "Add MarketplaceState", show=False),
         # Lowercase bindings
@@ -636,6 +637,21 @@ class MarketplaceView(Widget):
         if isinstance(data, PluginState) and self._scope_selector:
             self._scope_selector.show(
                 data, self._plugin_to_scope_status(data), action="disable"
+            )
+
+    def action_reset_plugin(self) -> None:
+        """Reset the selected plugin setting (remove from scope) with scope selector."""
+        if not self._tree:
+            return
+
+        node = self._tree.cursor_node
+        if node is None:
+            return
+
+        data = node.data
+        if isinstance(data, PluginState) and self._scope_selector:
+            self._scope_selector.show(
+                data, self._plugin_to_scope_status(data), action="reset"
             )
 
     def action_open_plugin_folder(self) -> None:

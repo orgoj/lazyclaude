@@ -106,7 +106,7 @@ All code MUST comply with these principles (see `docs/constitution.md`):
 | `g`/`G` | Go to top/bottom | List |
 | `Enter` | Drill down | Context |
 | `Esc` | Back | Context |
-| `I`/`E`/`D`/`U` | Install/Enable/Disable/Uninstall plugin | Marketplace |
+| `I`/`E`/`D`/`R`/`U` | Install/Enable/Disable/Reset/Uninstall plugin | Marketplace |
 | `A` | Add marketplace | Marketplace |
 | `i` | Toggle installed-only filter | Marketplace |
 | `n` | Toggle enabled-only filter | Marketplace |
@@ -362,6 +362,12 @@ Commands run in background workers (`@work(thread=True)`) to keep UI responsive.
 - When user expresses frustration (Czech corrections): stop immediately, don't argue, reassess approach
 - Check for rule violations first when user says something is wrong
 - User's direct feedback > my assumptions or technical justifications
+
+**Skill System Discipline (CRITICAL):**
+- When Skill tool returns "Unknown skill: X", try variant names: X-basic, X-system, X-analyze, X-manager, X-plan, X-worker, X-create
+- NEVER bypass skill system by reading files directly when a skill fails
+- If user says "skill is in context", use the Skill tool with variants - do NOT search/read files
+- `backlog/` directory is FORBIDDEN for direct Read/Glob - ALWAYS use backlog skills (backlog-basic, backlog-system, etc.)
 
 **Documentation Updates**
 - Every feature change MUST include documentation updates

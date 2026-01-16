@@ -26,7 +26,8 @@ This fork started as a simple modification to add scope selection to the marketp
   - Local scope (`./.claude/settings.local.json`) - Local, not version controlled
 
 - **Enhanced TUI features:**
-  - Scope selector dialog when enabling/disabling plugins
+  - Scope selector dialog when enabling/disabling/resetting plugins
+  - Reset (`R`) removes plugin setting from a scope (inherits from parent scope)
   - Visual status indicators for plugin state across all scopes
   - Preview mode for installed plugins (explore customizations, README)
 
