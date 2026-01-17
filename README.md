@@ -101,8 +101,40 @@ Example: `Ie/-/-` = installed+enabled in user scope, not in project/local
 - `project` - Team-shared at `./.claude/` (version controlled)
 - `local` - Local at `./.claude/settings.local.json` (not version controlled)
 
+**JSON Output (`--json list`):**
 
+```json
+{
+  "name": "plugin-name",
+  "marketplace": "marketplace-name",
+  "version": "1.0.0",
+  "description": "Plugin description",
+  "source_path": "/path/to/plugin/source",
+  "scopes": {
+    "user": {
+      "installed": true,
+      "enabled": true,
+      "version": "1.0.0",
+      "install_path": "/home/user/.claude/plugins/cache/marketplace/plugin/1.0.0"
+    },
+    "project": {
+      "installed": false,
+      "enabled": null,
+      "version": null,
+      "install_path": null
+    },
+    "local": {
+      "installed": false,
+      "enabled": null,
+      "version": null,
+      "install_path": null
+    }
+  }
+}
+```
 
+- `source_path` - Plugin source location (local path for directory marketplaces, URL for GitHub)
+- `install_path` - Per-scope installation path (`null` when not installed in that scope)
 
 ## Development
 

@@ -109,6 +109,13 @@ class UnifiedDataLoader:
 
                 plugin_id = f"{plugin_name}@{name}"
 
+                # Resolve source path
+                plugin_source = plugin_meta.get("source", "")
+                source_path = self._resolve_plugin_source_path(
+                    install_location,
+                    plugin_source,
+                )
+
                 plugin_state = PluginState(
                     plugin_id=plugin_id,
                     name=plugin_name,
@@ -124,7 +131,8 @@ class UnifiedDataLoader:
                     ),
                     description=plugin_meta.get("description", ""),
                     author=plugin_meta.get("author"),
-                    source=plugin_meta.get("source", ""),
+                    source=plugin_source,
+                    source_path=source_path,
                     homepage=plugin_meta.get("homepage"),
                     repository=plugin_meta.get("repository"),
                     license=plugin_meta.get("license"),
@@ -339,3 +347,50 @@ class UnifiedDataLoader:
             else None,
             version=matching_install.version if matching_install else None,
         )
+
+    def _resolve_plugin_source_path(
+        self,
+        marketplace_install_location: Path,
+        plugin_source: str | dict[str, Any],
+    ) -> str | None:
+        """Resolve the source path/URL for a plugin.
+
+        Args:
+            marketplace_install_location: Base path of the marketplace
+            plugin_source: Plugin source (string or dict from marketplace.json)
+
+        Returns:
+            - Local path for directory-sourced marketplaces
+            - Remote URL for GitHub-sourced or URL-based sources
+            - None if cannot resolve
+        """
+        if not plugin_source:
+            return None
+
+        # Dict source (e.g., {"url": "https://..."} or {"source": "github", "repo": "..."})
+        if isinstance(plugin_source, dict):
+            # Check for url key
+            if "url" in plugin_source:
+                return str(plugin_source["url"])
+            # Check for github repo
+            if plugin_source.get("source") == "github" and "repo" in plugin_source:
+                return f"https://github.com/{plugin_source['repo']}"
+            return None
+
+        # URL string (https://, git://, etc.)
+        if plugin_source.startswith(("https://", "http://", "git://", "git@")):
+            return plugin_source
+
+        # Relative path (e.g., "./plugins/name" or ".")
+        if plugin_source.startswith(("./", "../")) or plugin_source == ".":
+            resolved = (marketplace_install_location / plugin_source).resolve()
+            if resolved.is_dir():
+                return str(resolved)
+
+        # Absolute path (unlikely but handle)
+        if plugin_source.startswith("/"):
+            path = Path(plugin_source)
+            if path.is_dir():
+                return str(path)
+
+        return None

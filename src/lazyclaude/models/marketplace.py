@@ -130,6 +130,9 @@ class PluginState:
     description: str = ""
     author: dict[str, Any] | None = None
     source: str | dict[str, Any] = ""
+    source_path: str | None = (
+        None  # Resolved path (local) or URL (remote) to plugin source
+    )
     homepage: str | None = None
     repository: str | None = None
     license: str | None = None

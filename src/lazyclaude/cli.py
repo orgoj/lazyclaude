@@ -147,21 +147,31 @@ def output_json(plugins: list[PluginState]) -> None:
             or p.local.version
             or "not_installed",
             "description": p.description,
+            "source_path": p.source_path,
             "scopes": {
                 "user": {
                     "installed": p.user.installed,
                     "enabled": p.user.enabled,
                     "version": p.user.version,
+                    "install_path": str(p.user.install_path)
+                    if p.user.install_path
+                    else None,
                 },
                 "project": {
                     "installed": p.project.installed,
                     "enabled": p.project.enabled,
                     "version": p.project.version,
+                    "install_path": str(p.project.install_path)
+                    if p.project.install_path
+                    else None,
                 },
                 "local": {
                     "installed": p.local.installed,
                     "enabled": p.local.enabled,
                     "version": p.local.version,
+                    "install_path": str(p.local.install_path)
+                    if p.local.install_path
+                    else None,
                 },
             },
         }
