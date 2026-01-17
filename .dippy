@@ -1,0 +1,4 @@
+allow timeout 5 uv run lazyclaude *
+allow uv run ruff
+allow uv run mypy
+allow test -f *
